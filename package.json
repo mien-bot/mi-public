@@ -13,10 +13,10 @@
     "mi": "node bin/mi.mjs",
     "agent": "node bin/mi.mjs agent",
     "chat": "node bin/mi.mjs chat",
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "build:desktop": "node scripts/build-desktop.mjs",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
     "validate-content": "tsx scripts/validate-content.ts",
     "new-project": "tsx scripts/new-project.ts",
@@ -172,5 +172,8 @@
     "eslint-config-next": "16.2.11",
     "playwright": "^1.62.0",
     "vitest": "^4.1.10"
+  },
+  "engines": {
+    "node": ">=22.13.0"
   }
 }

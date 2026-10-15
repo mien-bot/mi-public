@@ -6,6 +6,8 @@ Mi brings project information, schedules, meeting notes, documents, review tasks
 
 This repository is a sanitized source edition. It starts with empty data folders and contains no original project records, client files, private workspace configuration, or original Git history.
 
+**Security status:** the current dependency lockfile has known security advisories, including critical Next.js findings and a PDF.js advisory. This source edition is not ready for public deployment or processing untrusted documents. See [the repository review](docs/public-review.md) for findings and remaining work.
+
 ## What you can do
 
 - **Organize projects:** maintain project details, milestones, budgets, checklists, questions, decisions, site reports, and deliverables.
@@ -37,11 +39,11 @@ The stack includes TypeScript, Next.js 16, React 19, Electron, Tailwind CSS, Zod
 
 ## Run locally
 
-Use Node.js 22 or newer and npm. Native desktop dependencies may need platform build tools. Windows is the primary development target; the presence of macOS packaging scripts does not establish a tested macOS release.
+Use Node.js 22.13.0 or newer and npm (Node.js 24 is the tested version). Native desktop dependencies may need platform build tools. Windows is the primary development target; the presence of macOS packaging scripts does not establish a tested macOS release.
 
 ```bash
 npm ci
-npm run dev -- --hostname 127.0.0.1
+npm run dev -- --webpack
 ```
 
 Open `http://127.0.0.1:3000`. The public copy starts without projects or connections. Create your own records through the app. Optional configuration keys are documented in `.env.example`; save your values in an untracked `.env.local` or use desktop Settings.
@@ -52,7 +54,7 @@ To start the desktop development shell:
 npm run electron:dev
 ```
 
-The desktop shell manages its own local server. Native features such as terminal sessions and agent processes are available there. Codex and Claude CLI integrations require their respective tools to be installed and authenticated separately.
+Stop the browser development server before starting the desktop shell: run one development server per checkout. The desktop shell manages its own local server. Native features such as terminal sessions and agent processes are available there. Codex and Claude CLI integrations require their respective tools to be installed and authenticated separately.
 
 ## Connections and data
 

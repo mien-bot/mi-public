@@ -122,16 +122,19 @@ describe("per-user configuration", () => {
     expect(enabled.sharedDataRootEnabled).toBe(true);
   });
 
-  it("defaults Notion auto-pull to enabled/240min and normalizes invalid interval overrides", () => {
+  it("defaults Notion auto-pull to disabled/240min and preserves an explicit opt-in", () => {
     const root = temporaryRoot();
     const store = createConfigStore({ userDataPath: root, secureStorage: secureStorage() });
     const initial = store.initialize();
-    expect(initial.notionSyncEnabled).toBe(true);
+    expect(initial.notionSyncEnabled).toBe(false);
     expect(initial.notionSyncIntervalMinutes).toBe(240);
 
-    const updated = store.updateSettings({ notionSyncEnabled: false, notionSyncIntervalMinutes: 15 });
-    expect(updated.notionSyncEnabled).toBe(false);
+    const updated = store.updateSettings({ notionSyncEnabled: true, notionSyncIntervalMinutes: 15 });
+    expect(updated.notionSyncEnabled).toBe(true);
     expect(updated.notionSyncIntervalMinutes).toBe(15);
+
+    const restarted = createConfigStore({ userDataPath: root, secureStorage: secureStorage() });
+    expect(restarted.initialize().notionSyncEnabled).toBe(true);
 
     const invalid = store.updateSettings({ notionSyncIntervalMinutes: -5 });
     expect(invalid.notionSyncIntervalMinutes).toBe(240);

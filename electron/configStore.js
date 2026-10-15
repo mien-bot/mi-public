@@ -68,7 +68,7 @@ function defaultSettings() {
     importedLegacyAt: null,
     // Background, read-only refresh of data/notion/project-map.json while the desktop app
     // is open. Never writes project.yaml/schedule.yaml — see notion-sync IPC in desktopMain.js.
-    notionSyncEnabled: true,
+    notionSyncEnabled: false,
     notionSyncIntervalMinutes: 240,
     // Terminal is a first-class project workspace. It stays optional so a
     // partner can hide the embedded tab, while Mi Studio remains available.
@@ -128,7 +128,7 @@ function normalizeSettings(input) {
     codexBin: typeof input?.codexBin === "string" && input.codexBin.trim() ? input.codexBin.trim() : null,
     claudeBin: typeof input?.claudeBin === "string" && input.claudeBin.trim() ? input.claudeBin.trim() : null,
     agentContextMaxBytes: Number.isInteger(max) && max > 0 ? max : defaults.agentContextMaxBytes,
-    notionSyncEnabled: input?.notionSyncEnabled !== false,
+    notionSyncEnabled: input?.notionSyncEnabled === true,
     terminalPanelEnabled: input?.terminalPanelEnabled !== false,
     launchAtLogin: input?.launchAtLogin !== false,
     launchAtLoginConfigured: input?.launchAtLoginConfigured === true,
