@@ -1,0 +1,8 @@
+@font-face { font-family: 'Architects Daughter'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/architects-daughter-400.woff2') format('woff2'); }
+@font-face { font-family: 'Cascadia Code'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/cascadia-code-400.woff2') format('woff2'); }
+@font-face { font-family: 'Cascadia Code'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/cascadia-code-600.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/ibm-plex-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'IBM Plex Mono'; font-style: normal; font-weight: 600; font-display: swap; src: url('/fonts/ibm-plex-mono-600.woff2') format('woff2'); }
+@font-face { font-family: 'Share Tech Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/share-tech-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'Ubuntu Mono'; font-style: normal; font-weight: 400; font-display: swap; src: url('/fonts/ubuntu-mono-400.woff2') format('woff2'); }
+@font-face { font-family: 'Ubuntu Mono'; font-style: normal; font-weight: 700; font-display: swap; src: url('/fonts/ubuntu-mono-700.woff2') format('woff2'); }

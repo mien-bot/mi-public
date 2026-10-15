@@ -1,0 +1,42 @@
+[
+  {
+    "file": "architects-daughter-400.woff2",
+    "url": "https://fonts.gstatic.com/s/architectsdaughter/v20/KtkxAKiDZI_td1Lkx62xHZHDtgO_Y-bvTYlg4w.woff2",
+    "bytes": 13156
+  },
+  {
+    "file": "cascadia-code-400.woff2",
+    "url": "https://fonts.gstatic.com/l/font?kit=qWcKB6-zq5zxD57cT5s916v3QjfzRuG9AIUcXuUMOcLETSqf9NOGXHSArezw9QK6&skey=6c4d198b169e6a2e&v=v5",
+    "bytes": 39968
+  },
+  {
+    "file": "cascadia-code-600.woff2",
+    "url": "https://fonts.gstatic.com/l/font?kit=qWcKB6-zq5zxD57cT5s916v3QjfzRuG9AIUcXuUMOcLETSqf9NOGXHSArezw9QK6&skey=6c4d198b169e6a2e&v=v5",
+    "bytes": 39968
+  },
+  {
+    "file": "ibm-plex-mono-400.woff2",
+    "url": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F63fjptAgt5VM-kVkqdyU8n1i8q1w.woff2",
+    "bytes": 14708
+  },
+  {
+    "file": "ibm-plex-mono-600.woff2",
+    "url": "https://fonts.gstatic.com/s/ibmplexmono/v20/-F6qfjptAgt5VM-kVkqdyU8n3vAOwlBFgg.woff2",
+    "bytes": 15620
+  },
+  {
+    "file": "share-tech-mono-400.woff2",
+    "url": "https://fonts.gstatic.com/s/sharetechmono/v16/J7aHnp1uDWRBEqV98dVQztYldFcLowEF.woff2",
+    "bytes": 13500
+  },
+  {
+    "file": "ubuntu-mono-400.woff2",
+    "url": "https://fonts.gstatic.com/s/ubuntumono/v19/KFOjCneDtsqEr0keqCMhbCc6CsQ.woff2",
+    "bytes": 27300
+  },
+  {
+    "file": "ubuntu-mono-700.woff2",
+    "url": "https://fonts.gstatic.com/s/ubuntumono/v19/KFO-CneDtsqEr0keqCMhbC-BL9H1tY0.woff2",
+    "bytes": 25748
+  }
+]

@@ -1,0 +1,39 @@
+schema_version: 1
+notion:
+  autosync_enabled: false
+  autosync_interval_minutes: 240
+  allowed_write_fields:
+    project:
+      - status
+      - client
+      - address
+      - knowledge
+    schedule:
+      - create
+      - remove
+      - planned_date
+      - actual_date
+      - start_time
+      - end_time
+    lead:
+      - create
+      - name
+      - source
+      - status
+      - date_received
+      - contact_name
+      - contact_email
+      - contact_phone
+      - estimated_value
+      - notes
+      - lost_reason
+      - dropbox_path
+      - contract_stage
+      - contract_notes
+      - referrer_name
+    task:
+      - content
+      - attachment
+verification:
+  before_apply:
+    - npm run validate-content

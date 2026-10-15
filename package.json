@@ -1,0 +1,176 @@
+{
+  "name": "mi-workspace",
+  "version": "0.4.9",
+  "productName": "Mi",
+  "description": "Local-first project operations workspace",
+  "author": "Mi contributors",
+  "private": true,
+  "main": "electron/main.js",
+  "bin": {
+    "mi": "bin/mi.mjs"
+  },
+  "scripts": {
+    "mi": "node bin/mi.mjs",
+    "agent": "node bin/mi.mjs agent",
+    "chat": "node bin/mi.mjs chat",
+    "dev": "next dev",
+    "build": "next build",
+    "build:desktop": "node scripts/build-desktop.mjs",
+    "start": "next start",
+    "lint": "eslint",
+    "validate-content": "tsx scripts/validate-content.ts",
+    "new-project": "tsx scripts/new-project.ts",
+    "new-client": "tsx scripts/new-client.ts",
+    "new-lead": "tsx scripts/new-lead.ts",
+    "suggest-checklist": "tsx scripts/suggest-checklist-items.ts",
+    "notion-probe": "tsx scripts/notion-probe.ts",
+    "index-library": "tsx scripts/index-library.ts",
+    "index-project-folder": "tsx scripts/index-project-folder.ts",
+    "notion-map": "node bin/mi.mjs notion map",
+    "notion-project": "node bin/mi.mjs notion project",
+    "populate-projects": "tsx scripts/populate-projects.ts",
+    "suggest-dropbox-links": "tsx scripts/suggest-dropbox-links.ts",
+    "find-orphan-project-notes": "tsx scripts/find-orphan-project-notes.ts",
+    "suggest-permit-qaqc-links": "tsx scripts/suggest-permit-qaqc-links.ts",
+    "pretest": "node scripts/check-electron-syntax.mjs",
+    "test": "vitest run",
+    "test:desktop:mini-mi": "node scripts/verify-mini-mi.cjs",
+    "electron:dev": "electron .",
+    "dist:win": "npm run build:desktop && electron-builder --win --dir",
+    "dist:win:installer": "node scripts/bump-version.mjs && npm run build:desktop && electron-builder --win",
+    "dist:mac": "npm run build:desktop && electron-builder --mac --dir",
+    "dist:mac:installer": "npm run build:desktop && electron-builder --mac",
+    "dist:mac:x64": "npm run build:desktop && electron-builder --mac --x64",
+    "dist:mac:arm64": "npm run build:desktop && electron-builder --mac --arm64",
+    "verify:mac": "node scripts/verify-mac-release.mjs",
+    "package:mac": "npm run dist:mac:installer",
+    "package": "npm run dist:win:installer",
+    "smoke:installed": "node scripts/smoke-installed.mjs"
+  },
+  "build": {
+    "appId": "org.mi.workspace",
+    "productName": "Mi",
+    "forceCodeSigning": false,
+    "asar": true,
+    "asarUnpack": [
+      "**/node_modules/node-pty/**/*",
+      "**/node_modules/@napi-rs/**/*"
+    ],
+    "npmRebuild": false,
+    "directories": {
+      "output": "dist-installer"
+    },
+    "files": [
+      "electron/**/*",
+      "!electron/**/*.test.ts",
+      "assets/mi-icon.png",
+      "assets/mi-icon.ico",
+      "mi.config.yaml",
+      "installer/agent-harness/**/*",
+      "!installer/**/*.test.ts",
+      "node_modules/node-pty/**/*",
+      "node_modules/js-yaml/**/*",
+      "node_modules/argparse/**/*",
+      "node_modules/pdfjs-dist/**/*",
+      "node_modules/@napi-rs/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "extraResources": [
+      {
+        "from": ".next/standalone",
+        "to": "app-runtime",
+        "filter": [
+          "**/*",
+          "!node_modules{,/**/*}",
+          "!**/*.map"
+        ]
+      },
+      {
+        "from": ".next/standalone/node_modules",
+        "to": "app-runtime/node_modules",
+        "filter": [
+          "**/*",
+          "!**/*.map"
+        ]
+      }
+    ],
+    "afterPack": "./installer/afterPack.cjs",
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "win": {
+      "icon": "assets/mi-icon.ico",
+      "artifactName": "Mi-Setup-${version}-${arch}.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "assets/mi-icon.png",
+      "artifactName": "Mi-${version}-macOS-${arch}.${ext}",
+      "category": "public.app-category.productivity",
+      "minimumSystemVersion": "12.0",
+      "hardenedRuntime": true,
+      "entitlements": "installer/entitlements.mac.plist",
+      "entitlementsInherit": "installer/entitlements.mac.inherit.plist",
+      "notarize": true,
+      "target": [
+        "dmg",
+        "zip"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "deleteAppDataOnUninstall": false,
+      "shortcutName": "Mi",
+      "include": "installer/upgrade.nsh"
+    }
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.3",
+    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/typography": "^0.5.20",
+    "@thednp/dommatrix": "^3.1.1",
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/xterm": "^6.0.0",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^5.2.2",
+    "jszip": "^3.10.1",
+    "mailparser": "^3.9.14",
+    "marked": "^18.0.7",
+    "next": "16.2.11",
+    "node-pty": "^1.2.0-beta.14",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.1.200",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.1",
+    "typescript": "^5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "electron": "43.2.0",
+    "electron-builder": "^26.15.3",
+    "eslint": "^9",
+    "eslint-config-next": "16.2.11",
+    "playwright": "^1.62.0",
+    "vitest": "^4.1.10"
+  }
+}

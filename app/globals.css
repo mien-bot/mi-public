@@ -1,0 +1,2349 @@
+@import "tailwindcss";
+@import "../public/fonts/fonts.css";
+@plugin "@tailwindcss/typography";
+
+/*
+ * Mi's palette is a restrained architectural/blueprint blue: carbon-black,
+ * concrete-grey, and a single documented blue family for accent/link/focus
+ * (see docs/design/blue-palette.md). Outfit for the wordmark/headings, Plus
+ * Jakarta Sans for body. The earlier amber/orange "wood" accent has been
+ * fully retired — do not reintroduce amber/orange tokens here.
+ *
+ * Appearance options (see docs/design/appearance-themes.md) layer on top of
+ * this: a resolved light/dark mode plus a cool-tone color preset, both
+ * expressed as `data-mi-theme`/`data-mi-preset` attributes on <html> (set by
+ * the blocking bootstrap script in app/layout.tsx before hydration, and kept
+ * live afterward by components/ThemeProvider.tsx). Tailwind v4's `dark:`
+ * variant is rebound to that attribute — rather than the OS media query —
+ * so every existing `dark:*` utility class in the app (prose-invert, error
+ * text, etc.) follows an explicit Light/Dark choice too, not just System.
+ */
+@custom-variant dark (&:where([data-mi-theme="dark"], [data-mi-theme="dark"] *));
+
+:root {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #f8f8f8;
+  --border: #e5e5e5;
+  --border-strong: #d4d4d4;
+  --muted: #f2f2f1;
+  --muted-foreground: #666666;
+  --accent: #316081;
+  --accent-foreground: #ffffff;
+  --link: #316081;
+  /* Fallback hover step (Blueprint light) for when no data-mi-* attribute is
+     present yet — see the "Appearance presets" section below for how this
+     is overridden per preset once data-mi-preset/data-mi-theme are set. */
+  --accent-hover: var(--mi-blueprint-accent-hover-light);
+  --link-hover: var(--mi-blueprint-link-hover-light);
+
+  /* Semantic status colors — success/danger stay true green/red because
+     they materially communicate pass/fail state (measured health,
+     overdue, rejected, etc.); warning uses an accessible blue-violet
+     (never amber/orange) so it still reads as its own family alongside
+     --accent's blueprint blue. Single source of truth consumed by
+     StatusBadge; every status badge and portfolio chart bar in the app
+     draws from these four. */
+  --status-success: #e4ead9;
+  --status-success-foreground: #3f5730;
+  --status-warning: #e6e4f7;
+  --status-warning-foreground: #4338ca;
+  --status-danger: #fbe2e1;
+  --status-danger-foreground: #b3261e;
+  --status-neutral: var(--muted);
+  --status-neutral-foreground: var(--muted-foreground);
+  --viz-series-1: var(--accent);
+  --viz-series-2: var(--status-warning-foreground);
+  --viz-series-3: var(--status-success-foreground);
+  --viz-series-4: var(--link);
+  --viz-series-5: var(--muted-foreground);
+  --viz-series-6: var(--status-danger-foreground);
+  --mi-motion-duration: 0.35s;
+  --mi-motion-distance: 4px;
+  --mi-motion-scale: 0.985;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent-hover: var(--accent-hover);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-status-success: var(--status-success);
+  --color-status-success-foreground: var(--status-success-foreground);
+  --color-status-warning: var(--status-warning);
+  --color-status-warning-foreground: var(--status-warning-foreground);
+  --color-status-danger: var(--status-danger);
+  --color-status-danger-foreground: var(--status-danger-foreground);
+  --color-status-neutral: var(--status-neutral);
+  --color-status-neutral-foreground: var(--status-neutral-foreground);
+  /* Elevation — light mode only; dark mode communicates hover via border
+     brightening instead (a drop shadow doesn't read against near-black),
+     see .card-hover below. */
+  --shadow-sm: 0 1px 2px rgb(10 10 10 / 6%), 0 1px 1px rgb(10 10 10 / 4%);
+  --font-sans: var(--mi-body-font);
+  --font-display: var(--mi-display-font);
+  /* Rebinding Tailwind's own --font-mono means every `font-mono` utility already
+     in the app -- paths, hashes, IDs, code samples -- follows the Coding font
+     choice without touching those call sites. */
+  --font-mono: var(--mi-code-font);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #f5f5f4;
+    --card: #141414;
+    --border: rgb(245 245 244 / 12%);
+    --border-strong: rgb(245 245 244 / 26%);
+    --muted: #1c1c1a;
+    --muted-foreground: #b5b5b5;
+    --accent: #75aed7;
+    --accent-foreground: #0d1b26;
+    --link: #75aed7;
+    --accent-hover: var(--mi-blueprint-accent-hover-dark);
+    --link-hover: var(--mi-blueprint-link-hover-dark);
+
+    --status-success: #26301f;
+    --status-success-foreground: #b9d1a0;
+    --status-warning: #241f4a;
+    --status-warning-foreground: #b7b0f0;
+    --status-danger: #3a1414;
+    --status-danger-foreground: #f2a19a;
+    --status-neutral: var(--muted);
+    --status-neutral-foreground: var(--muted-foreground);
+  }
+}
+
+/*
+ * Explicit Light/Dark overrides for the base tokens above. The plain :root
+ * block and the prefers-color-scheme media query only cover the no-JS /
+ * attribute-absent fallback (System, driven purely by the OS) — without
+ * these, picking "Light" in Settings while the OS is in dark mode set
+ * data-mi-theme="light" but the background/foreground/etc. stayed on the
+ * OS-driven dark values, since a media query doesn't know about the
+ * attribute. These two blocks make the explicit choice win regardless of
+ * the OS. Deliberately excludes --accent/--link — those stay owned
+ * exclusively by the preset blocks further down (see the comment there and
+ * components/visualTone.test.ts's "exactly two --accent literals" check).
+ */
+:root[data-mi-theme="light"] {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #f8f8f8;
+  --border: #e5e5e5;
+  --border-strong: #d4d4d4;
+  --muted: #f2f2f1;
+  --muted-foreground: #666666;
+  --status-success: #e4ead9;
+  --status-success-foreground: #3f5730;
+  --status-warning: #e6e4f7;
+  --status-warning-foreground: #4338ca;
+  --status-danger: #fbe2e1;
+  --status-danger-foreground: #b3261e;
+  --status-neutral: var(--muted);
+  --status-neutral-foreground: var(--muted-foreground);
+}
+
+:root[data-mi-theme="dark"] {
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #f5f5f4;
+  --card: #141414;
+  --border: rgb(245 245 244 / 12%);
+  --border-strong: rgb(245 245 244 / 26%);
+  --muted: #1c1c1a;
+  --muted-foreground: #b5b5b5;
+  --status-success: #26301f;
+  --status-success-foreground: #b9d1a0;
+  --status-warning: #241f4a;
+  --status-warning-foreground: #b7b0f0;
+  --status-danger: #3a1414;
+  --status-danger-foreground: #f2a19a;
+  --status-neutral: var(--muted);
+  --status-neutral-foreground: var(--muted-foreground);
+}
+
+/*
+ * Appearance presets — Blueprint, Cobalt, Slate, High Contrast.
+ *
+ * The raw hex values below live under `--mi-<preset>-*` names (never under
+ * `--accent`/`--link` directly) and are resolved into the real `--accent` /
+ * `--accent-foreground` / `--link` tokens only inside the attribute-scoped
+ * rules further down, via `var()` indirection. This keeps the two blocks
+ * above — the plain `:root` default and the `@media (prefers-color-scheme:
+ * dark)` block — as the sole literal `--accent: #hex;` declarations in this
+ * file (components/visualTone.test.ts asserts there are exactly two), so
+ * they keep working unmodified as the no-JS / attribute-absent fallback:
+ * Blueprint + whatever the OS reports, which is also the documented safe
+ * fallback for an unknown/stale/corrupt stored preference.
+ *
+ * Contrast ratios below are computed with the standard WCAG relative-
+ * luminance formula against this file's actual --background values
+ * (#ffffff light / #0a0a0a dark), not assumed — see
+ * docs/design/appearance-themes.md for the full token table and the
+ * computation. All exceed 4.5:1 (most exceed 6.5:1).
+ */
+:root {
+  /* Blueprint — identical to the :root/dark-media hex above, restated here
+     under a distinct name so the explicit Light/Dark case (not just System)
+     can resolve through the same indirection as every other preset. */
+  --mi-blueprint-accent-light: #316081;
+  --mi-blueprint-accent-foreground-light: #ffffff;
+  --mi-blueprint-link-light: #316081;
+  --mi-blueprint-accent-dark: #75aed7;
+  --mi-blueprint-accent-foreground-dark: #0d1b26;
+  --mi-blueprint-link-dark: #75aed7;
+  /* Hover step — darker on light backgrounds, lighter on dark, same
+     direction as the light->dark accent shift above. Contrast (hover bg vs.
+     its own mode's --background): 10.70:1 light, 10.97:1 dark; label
+     (accent-foreground) on hover bg: 10.70:1 / 8.72:1. See
+     docs/design/appearance-themes.md for the full hover table. */
+  --mi-blueprint-accent-hover-light: #214158;
+  --mi-blueprint-link-hover-light: #214158;
+  --mi-blueprint-accent-hover-dark: #9ec6e3;
+  --mi-blueprint-link-hover-dark: #9ec6e3;
+
+  /* Cobalt — brighter/clearer blue. Contrast: 6.70:1 (light text on white),
+     7.79:1 (dark text on #0a0a0a); button-label pairs 6.70:1 / 7.05:1. */
+  --mi-cobalt-accent-light: #1d4ed8;
+  --mi-cobalt-accent-foreground-light: #ffffff;
+  --mi-cobalt-link-light: #1d4ed8;
+  --mi-cobalt-accent-dark: #60a5fa;
+  --mi-cobalt-accent-foreground-dark: #08172e;
+  --mi-cobalt-link-dark: #60a5fa;
+  /* Hover step — 10.71:1 light / 10.49:1 dark vs. own --background;
+     accent-foreground label on hover bg: 10.71:1 / 9.50:1. */
+  --mi-cobalt-accent-hover-light: #143593;
+  --mi-cobalt-link-hover-light: #143593;
+  --mi-cobalt-accent-hover-dark: #90c0fc;
+  --mi-cobalt-link-hover-dark: #90c0fc;
+
+  /* Slate — quiet, cool gray-blue. Contrast: 7.58:1 (light), 7.72:1 (dark);
+     button-label pairs 7.58:1 / 6.85:1. */
+  --mi-slate-accent-light: #475569;
+  --mi-slate-accent-foreground-light: #ffffff;
+  --mi-slate-link-light: #475569;
+  --mi-slate-accent-dark: #94a3b8;
+  --mi-slate-accent-foreground-dark: #101a24;
+  --mi-slate-link-dark: #94a3b8;
+  /* Hover step — 11.53:1 light / 10.63:1 dark vs. own --background;
+     accent-foreground label on hover bg: 11.53:1 / 9.43:1. */
+  --mi-slate-accent-hover-light: #303a47;
+  --mi-slate-link-hover-light: #303a47;
+  --mi-slate-accent-hover-dark: #b4bfcd;
+  --mi-slate-link-hover-dark: #b4bfcd;
+
+  /* High Contrast — maximum legibility, blue focus. Contrast: 8.72:1
+     (light), 10.98:1 (dark); button-label pairs 8.72:1 / 10.40:1. Also
+     strengthens --foreground/--border-strong/--muted-foreground and adds a
+     reinforced focus outline (see the [data-mi-preset="contrast"]
+     :focus-visible rule below) beyond what the accent hue alone provides. */
+  --mi-contrast-accent-light: #1e40af;
+  --mi-contrast-accent-foreground-light: #ffffff;
+  --mi-contrast-link-light: #1e40af;
+  --mi-contrast-accent-dark: #93c5fd;
+  --mi-contrast-accent-foreground-dark: #05131f;
+  --mi-contrast-link-dark: #93c5fd;
+  /* Hover step — 12.68:1 light / 13.17:1 dark vs. own --background;
+     accent-foreground label on hover bg: 12.68:1 / 12.48:1. */
+  --mi-contrast-accent-hover-light: #142c77;
+  --mi-contrast-link-hover-light: #142c77;
+  --mi-contrast-accent-hover-dark: #b3d6fe;
+  --mi-contrast-link-hover-dark: #b3d6fe;
+  --mi-contrast-foreground-light: #000000;
+  --mi-contrast-foreground-dark: #ffffff;
+  --mi-contrast-border-strong-light: #737373;
+  --mi-contrast-border-strong-dark: #a3a3a3;
+  /* muted-foreground candidates chosen to clear 4.5:1 on their own
+     background (7.00:1 light on white, 11.96:1 dark on #0a0a0a) — stronger
+     than the shared default (~3.45:1 light), which is unchanged for the
+     other three presets since improving it app-wide is out of this task's
+     scope. */
+  --mi-contrast-muted-foreground-light: #595959;
+  --mi-contrast-muted-foreground-dark: #c9c9c9;
+
+  /* Terminal â€” a cool phosphor-cyan that stays professional rather than
+     novelty-neon. Contrast: 5.47:1 light and 13.38:1 dark; button labels
+     remain above AA in both modes. */
+  --mi-terminal-accent-light: #0f766e;
+  --mi-terminal-accent-foreground-light: #ffffff;
+  --mi-terminal-link-light: #0f766e;
+  --mi-terminal-accent-dark: #5eead4;
+  --mi-terminal-accent-foreground-dark: #042f2e;
+  --mi-terminal-link-dark: #5eead4;
+  --mi-terminal-accent-hover-light: #0a4f4a;
+  --mi-terminal-link-hover-light: #0a4f4a;
+  --mi-terminal-accent-hover-dark: #99f6e4;
+  --mi-terminal-link-hover-dark: #99f6e4;
+
+  /* Ultraviolet — indigo-violet. The furthest the palette goes from the drafting blues
+     while staying inside the documented cool family (blue channel dominant, never warm).
+     Measured: 6.29:1 light, 9.93:1 dark against this file's own backgrounds. */
+  --mi-ultraviolet-accent-light: #4f46e5;
+  --mi-ultraviolet-accent-foreground-light: #ffffff;
+  --mi-ultraviolet-link-light: #4f46e5;
+  --mi-ultraviolet-accent-dark: #a5b4fc;
+  --mi-ultraviolet-accent-foreground-dark: #1a1546;
+  --mi-ultraviolet-link-dark: #a5b4fc;
+  --mi-ultraviolet-accent-hover-light: #3730a3;
+  --mi-ultraviolet-link-hover-light: #3730a3;
+  --mi-ultraviolet-accent-hover-dark: #c7d2fe;
+  --mi-ultraviolet-link-hover-dark: #c7d2fe;
+
+  /* Jade — phosphor green. Reads as a signal readout rather than as the semantic
+     "success" green: --status-success stays its own token and is unaffected by the
+     preset, so a green accent never turns the whole page into a pass state.
+     Measured: 5.48:1 light, 12.99:1 dark. */
+  --mi-jade-accent-light: #047857;
+  --mi-jade-accent-foreground-light: #ffffff;
+  --mi-jade-link-light: #047857;
+  --mi-jade-accent-dark: #6ee7b7;
+  --mi-jade-accent-foreground-dark: #04281c;
+  --mi-jade-link-dark: #6ee7b7;
+  --mi-jade-accent-hover-light: #065f46;
+  --mi-jade-link-hover-light: #065f46;
+  --mi-jade-accent-hover-dark: #a7f3d0;
+  --mi-jade-link-hover-dark: #a7f3d0;
+
+  /* Ice — glacial cyan, the brightest preset in dark mode and the one Neon deck was tuned
+     against. Distinct from Terminal: cyan rather than teal, and considerably paler at the
+     dark end. Measured: 5.36:1 light, 15.86:1 dark. */
+  --mi-ice-accent-light: #0e7490;
+  --mi-ice-accent-foreground-light: #ffffff;
+  --mi-ice-link-light: #0e7490;
+  --mi-ice-accent-dark: #a5f3fc;
+  --mi-ice-accent-foreground-dark: #032630;
+  --mi-ice-link-dark: #a5f3fc;
+  --mi-ice-accent-hover-light: #0b5a70;
+  --mi-ice-link-hover-light: #0b5a70;
+  --mi-ice-accent-hover-dark: #cffafe;
+  --mi-ice-link-hover-dark: #cffafe;
+}
+
+:root[data-mi-preset="blueprint"][data-mi-theme="light"] {
+  --accent: var(--mi-blueprint-accent-light);
+  --accent-foreground: var(--mi-blueprint-accent-foreground-light);
+  --link: var(--mi-blueprint-link-light);
+  --accent-hover: var(--mi-blueprint-accent-hover-light);
+  --link-hover: var(--mi-blueprint-link-hover-light);
+}
+:root[data-mi-preset="blueprint"][data-mi-theme="dark"] {
+  --accent: var(--mi-blueprint-accent-dark);
+  --accent-foreground: var(--mi-blueprint-accent-foreground-dark);
+  --link: var(--mi-blueprint-link-dark);
+  --accent-hover: var(--mi-blueprint-accent-hover-dark);
+  --link-hover: var(--mi-blueprint-link-hover-dark);
+}
+
+:root[data-mi-preset="cobalt"][data-mi-theme="light"] {
+  --accent: var(--mi-cobalt-accent-light);
+  --accent-foreground: var(--mi-cobalt-accent-foreground-light);
+  --link: var(--mi-cobalt-link-light);
+  --accent-hover: var(--mi-cobalt-accent-hover-light);
+  --link-hover: var(--mi-cobalt-link-hover-light);
+}
+:root[data-mi-preset="cobalt"][data-mi-theme="dark"] {
+  --accent: var(--mi-cobalt-accent-dark);
+  --accent-foreground: var(--mi-cobalt-accent-foreground-dark);
+  --link: var(--mi-cobalt-link-dark);
+  --accent-hover: var(--mi-cobalt-accent-hover-dark);
+  --link-hover: var(--mi-cobalt-link-hover-dark);
+}
+
+:root[data-mi-preset="slate"][data-mi-theme="light"] {
+  --accent: var(--mi-slate-accent-light);
+  --accent-foreground: var(--mi-slate-accent-foreground-light);
+  --link: var(--mi-slate-link-light);
+  --accent-hover: var(--mi-slate-accent-hover-light);
+  --link-hover: var(--mi-slate-link-hover-light);
+}
+:root[data-mi-preset="slate"][data-mi-theme="dark"] {
+  --accent: var(--mi-slate-accent-dark);
+  --accent-foreground: var(--mi-slate-accent-foreground-dark);
+  --link: var(--mi-slate-link-dark);
+  --accent-hover: var(--mi-slate-accent-hover-dark);
+  --link-hover: var(--mi-slate-link-hover-dark);
+}
+
+:root[data-mi-preset="contrast"][data-mi-theme="light"] {
+  --accent: var(--mi-contrast-accent-light);
+  --accent-foreground: var(--mi-contrast-accent-foreground-light);
+  --link: var(--mi-contrast-link-light);
+  --accent-hover: var(--mi-contrast-accent-hover-light);
+  --link-hover: var(--mi-contrast-link-hover-light);
+  --foreground: var(--mi-contrast-foreground-light);
+  --border-strong: var(--mi-contrast-border-strong-light);
+  --muted-foreground: var(--mi-contrast-muted-foreground-light);
+}
+:root[data-mi-preset="contrast"][data-mi-theme="dark"] {
+  --accent: var(--mi-contrast-accent-dark);
+  --accent-foreground: var(--mi-contrast-accent-foreground-dark);
+  --link: var(--mi-contrast-link-dark);
+  --accent-hover: var(--mi-contrast-accent-hover-dark);
+  --link-hover: var(--mi-contrast-link-hover-dark);
+  --foreground: var(--mi-contrast-foreground-dark);
+  --border-strong: var(--mi-contrast-border-strong-dark);
+  --muted-foreground: var(--mi-contrast-muted-foreground-dark);
+}
+
+:root[data-mi-preset="terminal"][data-mi-theme="light"] {
+  --accent: var(--mi-terminal-accent-light);
+  --accent-foreground: var(--mi-terminal-accent-foreground-light);
+  --link: var(--mi-terminal-link-light);
+  --accent-hover: var(--mi-terminal-accent-hover-light);
+  --link-hover: var(--mi-terminal-link-hover-light);
+}
+:root[data-mi-preset="terminal"][data-mi-theme="dark"] {
+  --accent: var(--mi-terminal-accent-dark);
+  --accent-foreground: var(--mi-terminal-accent-foreground-dark);
+  --link: var(--mi-terminal-link-dark);
+  --accent-hover: var(--mi-terminal-accent-hover-dark);
+  --link-hover: var(--mi-terminal-link-hover-dark);
+}
+
+:root[data-mi-preset="ultraviolet"][data-mi-theme="light"] {
+  --accent: var(--mi-ultraviolet-accent-light);
+  --accent-foreground: var(--mi-ultraviolet-accent-foreground-light);
+  --link: var(--mi-ultraviolet-link-light);
+  --accent-hover: var(--mi-ultraviolet-accent-hover-light);
+  --link-hover: var(--mi-ultraviolet-link-hover-light);
+}
+
+:root[data-mi-preset="ultraviolet"][data-mi-theme="dark"] {
+  --accent: var(--mi-ultraviolet-accent-dark);
+  --accent-foreground: var(--mi-ultraviolet-accent-foreground-dark);
+  --link: var(--mi-ultraviolet-link-dark);
+  --accent-hover: var(--mi-ultraviolet-accent-hover-dark);
+  --link-hover: var(--mi-ultraviolet-link-hover-dark);
+}
+
+:root[data-mi-preset="jade"][data-mi-theme="light"] {
+  --accent: var(--mi-jade-accent-light);
+  --accent-foreground: var(--mi-jade-accent-foreground-light);
+  --link: var(--mi-jade-link-light);
+  --accent-hover: var(--mi-jade-accent-hover-light);
+  --link-hover: var(--mi-jade-link-hover-light);
+}
+
+:root[data-mi-preset="jade"][data-mi-theme="dark"] {
+  --accent: var(--mi-jade-accent-dark);
+  --accent-foreground: var(--mi-jade-accent-foreground-dark);
+  --link: var(--mi-jade-link-dark);
+  --accent-hover: var(--mi-jade-accent-hover-dark);
+  --link-hover: var(--mi-jade-link-hover-dark);
+}
+
+:root[data-mi-preset="ice"][data-mi-theme="light"] {
+  --accent: var(--mi-ice-accent-light);
+  --accent-foreground: var(--mi-ice-accent-foreground-light);
+  --link: var(--mi-ice-link-light);
+  --accent-hover: var(--mi-ice-accent-hover-light);
+  --link-hover: var(--mi-ice-link-hover-light);
+}
+
+:root[data-mi-preset="ice"][data-mi-theme="dark"] {
+  --accent: var(--mi-ice-accent-dark);
+  --accent-foreground: var(--mi-ice-accent-foreground-dark);
+  --link: var(--mi-ice-link-dark);
+  --accent-hover: var(--mi-ice-accent-hover-dark);
+  --link-hover: var(--mi-ice-link-hover-dark);
+}
+
+/* Additional palettes keep semantic status colors independent. */
+:root {
+  --mi-graphite-accent-light: #4b4b4b;
+  --mi-graphite-accent-foreground-light: #ffffff;
+  --mi-graphite-link-light: #4b4b4b;
+  --mi-graphite-accent-hover-light: #303030;
+  --mi-graphite-link-hover-light: #303030;
+  --mi-graphite-accent-dark: #cbd5e1;
+  --mi-graphite-accent-foreground-dark: #101820;
+  --mi-graphite-link-dark: #cbd5e1;
+  --mi-graphite-accent-hover-dark: #e2e8f0;
+  --mi-graphite-link-hover-dark: #e2e8f0;
+  --mi-ocean-accent-light: #0f6674;
+  --mi-ocean-accent-foreground-light: #ffffff;
+  --mi-ocean-link-light: #0f6674;
+  --mi-ocean-accent-hover-light: #0b4c59;
+  --mi-ocean-link-hover-light: #0b4c59;
+  --mi-ocean-accent-dark: #67d9dc;
+  --mi-ocean-accent-foreground-dark: #101820;
+  --mi-ocean-link-dark: #67d9dc;
+  --mi-ocean-accent-hover-dark: #a2eff0;
+  --mi-ocean-link-hover-dark: #a2eff0;
+  --mi-lavender-accent-light: #7250a0;
+  --mi-lavender-accent-foreground-light: #ffffff;
+  --mi-lavender-link-light: #7250a0;
+  --mi-lavender-accent-hover-light: #56377e;
+  --mi-lavender-link-hover-light: #56377e;
+  --mi-lavender-accent-dark: #c9b6f0;
+  --mi-lavender-accent-foreground-dark: #101820;
+  --mi-lavender-link-dark: #c9b6f0;
+  --mi-lavender-accent-hover-dark: #e0d4fa;
+  --mi-lavender-link-hover-dark: #e0d4fa;
+  --mi-midnight-accent-light: #31458a;
+  --mi-midnight-accent-foreground-light: #ffffff;
+  --mi-midnight-link-light: #31458a;
+  --mi-midnight-accent-hover-light: #243469;
+  --mi-midnight-link-hover-light: #243469;
+  --mi-midnight-accent-dark: #a5baff;
+  --mi-midnight-accent-foreground-dark: #101820;
+  --mi-midnight-link-dark: #a5baff;
+  --mi-midnight-accent-hover-dark: #ced9ff;
+  --mi-midnight-link-hover-dark: #ced9ff;
+}
+
+:root[data-mi-preset="graphite"][data-mi-theme="light"] {
+  --accent: var(--mi-graphite-accent-light);
+  --accent-foreground: var(--mi-graphite-accent-foreground-light);
+  --link: var(--mi-graphite-link-light);
+  --accent-hover: var(--mi-graphite-accent-hover-light);
+  --link-hover: var(--mi-graphite-link-hover-light);
+  --background: #f5f6f8;
+  --card: #ffffff;
+  --muted: #e9ecf1;
+  --foreground: #161b22;
+  --muted-foreground: #5f6470;
+}
+
+:root[data-mi-preset="graphite"][data-mi-theme="dark"] {
+  --accent: var(--mi-graphite-accent-dark);
+  --accent-foreground: var(--mi-graphite-accent-foreground-dark);
+  --link: var(--mi-graphite-link-dark);
+  --accent-hover: var(--mi-graphite-accent-hover-dark);
+  --link-hover: var(--mi-graphite-link-hover-dark);
+  --background: #11151b;
+  --card: #1a2029;
+  --muted: #222b36;
+  --foreground: #edf1f7;
+  --muted-foreground: #b9c3d2;
+}
+
+:root[data-mi-preset="ocean"][data-mi-theme="light"] {
+  --accent: var(--mi-ocean-accent-light);
+  --accent-foreground: var(--mi-ocean-accent-foreground-light);
+  --link: var(--mi-ocean-link-light);
+  --accent-hover: var(--mi-ocean-accent-hover-light);
+  --link-hover: var(--mi-ocean-link-hover-light);
+  --background: #f2f8f8;
+  --card: #ffffff;
+  --muted: #e5eff0;
+  --foreground: #102b33;
+  --muted-foreground: #5f6470;
+}
+
+:root[data-mi-preset="ocean"][data-mi-theme="dark"] {
+  --accent: var(--mi-ocean-accent-dark);
+  --accent-foreground: var(--mi-ocean-accent-foreground-dark);
+  --link: var(--mi-ocean-link-dark);
+  --accent-hover: var(--mi-ocean-accent-hover-dark);
+  --link-hover: var(--mi-ocean-link-hover-dark);
+  --background: #091a20;
+  --card: #11262d;
+  --muted: #1b333a;
+  --foreground: #edf8f8;
+  --muted-foreground: #b9c3d2;
+}
+
+:root[data-mi-preset="lavender"][data-mi-theme="light"] {
+  --accent: var(--mi-lavender-accent-light);
+  --accent-foreground: var(--mi-lavender-accent-foreground-light);
+  --link: var(--mi-lavender-link-light);
+  --accent-hover: var(--mi-lavender-accent-hover-light);
+  --link-hover: var(--mi-lavender-link-hover-light);
+  --background: #f8f5fc;
+  --card: #ffffff;
+  --muted: #eee8f5;
+  --foreground: #272135;
+  --muted-foreground: #5f6470;
+}
+
+:root[data-mi-preset="lavender"][data-mi-theme="dark"] {
+  --accent: var(--mi-lavender-accent-dark);
+  --accent-foreground: var(--mi-lavender-accent-foreground-dark);
+  --link: var(--mi-lavender-link-dark);
+  --accent-hover: var(--mi-lavender-accent-hover-dark);
+  --link-hover: var(--mi-lavender-link-hover-dark);
+  --background: #191421;
+  --card: #241e30;
+  --muted: #30283e;
+  --foreground: #f5f0fb;
+  --muted-foreground: #b9c3d2;
+}
+
+:root[data-mi-preset="midnight"][data-mi-theme="light"] {
+  --accent: var(--mi-midnight-accent-light);
+  --accent-foreground: var(--mi-midnight-accent-foreground-light);
+  --link: var(--mi-midnight-link-light);
+  --accent-hover: var(--mi-midnight-accent-hover-light);
+  --link-hover: var(--mi-midnight-link-hover-light);
+  --background: #f3f5fb;
+  --card: #ffffff;
+  --muted: #e7ebf5;
+  --foreground: #182340;
+  --muted-foreground: #5f6470;
+}
+
+:root[data-mi-preset="midnight"][data-mi-theme="dark"] {
+  --accent: var(--mi-midnight-accent-dark);
+  --accent-foreground: var(--mi-midnight-accent-foreground-dark);
+  --link: var(--mi-midnight-link-dark);
+  --accent-hover: var(--mi-midnight-accent-hover-dark);
+  --link-hover: var(--mi-midnight-link-hover-dark);
+  --background: #080f21;
+  --card: #111b31;
+  --muted: #1d2941;
+  --foreground: #eef2ff;
+  --muted-foreground: #b9c3d2;
+}
+
+/* Dim uses dark accents with softer, raised neutral surfaces for every palette. */
+:root[data-mi-theme="dark"][data-mi-display="dim"] {
+  --background: #1c222b;
+  --card: #242c37;
+  --muted: #2b3440;
+  --foreground: #f0f3f8;
+  --muted-foreground: #c1cad6;
+}
+
+/* High Contrast reinforces keyboard focus beyond the app's normal
+   focus-visible:ring-2 focus-visible:ring-accent utility (which already
+   follows --accent, so it already recolors per preset on its own). This is
+   additive, not a replacement, and only active under this one preset. */
+[data-mi-preset="contrast"] :focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* --accent-hover gives solid, flat bg-accent buttons (Send, Finish setup,
+   Submit refresh, the appearance-preview "Primary action" sample, the
+   selected project-AI tab, etc.) a visible, distinct hover step — today
+   they reuse the same flat --accent color for hover, which reads as no
+   hover feedback at all. Scoped to <button> so it never touches decorative/
+   non-interactive bg-accent uses (chat bubbles, portfolio bars, timeline
+   markers). Elements that already hover to a different, deliberate
+   treatment (hover:border-accent, hover:text-foreground, hover:underline,
+   etc.) never carry a bare `bg-accent` class on their resting state and so
+   are untouched by this rule. */
+button.bg-accent:not(:disabled):hover {
+  background-color: var(--accent-hover);
+}
+
+body {
+  font-family: var(--mi-body-font);
+  min-height: 100dvh;
+  padding-bottom: env(safe-area-inset-bottom);
+  -webkit-text-size-adjust: 100%;
+}
+
+:root[data-mi-typography="technical"] {
+  --mi-body-font: "Bahnschrift", "Arial Narrow", "Aptos", "Segoe UI", sans-serif;
+  --mi-display-font: "Bahnschrift", "Arial Narrow", "Aptos Display", "Segoe UI", sans-serif;
+}
+
+:root[data-mi-typography="drafting"] {
+  --mi-display-font: "Architects Daughter", "Segoe UI", sans-serif;
+}
+
+/*
+ * Coding font (data-mi-code-font, see lib/theme/preferences.ts). One picked
+ * family drives three things at once: the Code typography below, every
+ * `font-mono` surface under any typography, and the xterm terminal
+ * (components/TerminalPanel.tsx reads --mi-code-font off the document). Each
+ * stack degrades to the next-best installed face, so a machine without the
+ * chosen font still gets a real coding face rather than a proportional one.
+ */
+:root {
+  --mi-body-font: "Aptos", "Segoe UI Variable Text", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --mi-display-font: "Aptos Display", "Segoe UI Variable Display", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --mi-code-font: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-mi-code-font="cascadia-mono"] {
+  --mi-code-font: "Cascadia Code", "Cascadia Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-mi-code-font="plex"] {
+  --mi-code-font: "IBM Plex Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-mi-code-font="consolas"] {
+  --mi-code-font: Consolas, "IBM Plex Mono", "Liberation Mono", "DejaVu Sans Mono", monospace;
+}
+
+:root[data-mi-code-font="ubuntu"] {
+  --mi-code-font: "Ubuntu Mono", "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+}
+
+:root[data-mi-typography="code"] {
+  --mi-body-font: var(--mi-code-font);
+  --mi-display-font: var(--mi-code-font);
+}
+
+:root[data-mi-code-font="drafting"] {
+  --mi-code-font: "Share Tech Mono", "Cascadia Code", monospace;
+}
+
+:root[data-mi-typography="code"] body {
+  letter-spacing: -0.012em;
+}
+
+/* A monospaced face sets materially wider than the studio one, and the top nav is the
+   tightest row in the app. Without this its labels wrap mid-item -- "Permit QAQC" breaking
+   onto two lines inside a 16-tall bar -- at ordinary window widths. The links themselves
+   carry whitespace-nowrap (components/Nav.tsx); this buys back the width to fit them. */
+:root[data-mi-typography="code"] .mi-primary-nav,
+:root[data-mi-typography="code"] .mi-primary-nav nav {
+  gap: 1rem;
+}
+
+:root[data-mi-graphics="blueprint"] body {
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 4.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 4.5%, transparent) 1px, transparent 1px);
+  background-attachment: fixed;
+  background-size: 32px 32px;
+}
+
+:root[data-mi-graphics="terminal"] body {
+  background-image:
+    radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 26rem),
+    linear-gradient(color-mix(in srgb, var(--accent) 3.5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 3.5%, transparent) 1px, transparent 1px);
+  background-attachment: fixed;
+  background-size: auto, 28px 28px, 28px 28px;
+}
+
+:root[data-mi-graphics="terminal"] body::after {
+  position: fixed;
+  z-index: 999;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 3px,
+    color-mix(in srgb, var(--foreground) 7%, transparent) 4px
+  );
+  opacity: 0.16;
+}
+
+:root[data-mi-graphics="terminal"] .mi-app-header {
+  box-shadow: inset 0 -1px color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+/*
+ * Neon deck — the loudest graphic style: lit edges, deep accent bloom, a fine drafting
+ * grid that drifts at Cinematic, and a chromatic scan layer over the whole window.
+ *
+ * Every colour here is `color-mix(in srgb, var(--accent) N%, ...)` — there is not one hex
+ * literal in this block, on purpose. That keeps the style recolouring with whichever
+ * preset is chosen (Blueprint blue, Terminal cyan, …), keeps it inside the documented
+ * blue family in docs/design/blue-palette.md, and keeps app/globals.css at exactly the two
+ * literal `--accent:` declarations that components/appearanceThemes.test.ts counts.
+ */
+:root[data-mi-graphics="neon"] body {
+  background-image:
+    radial-gradient(circle at 78% -6%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 32rem),
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px);
+  background-attachment: fixed;
+  background-position: 0 0, 0 0, 0 0;
+  background-size: auto, 28px 28px, 28px 28px;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-mi-graphics="neon"] body {
+    animation: grid-drift 24s linear infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+}
+
+:root[data-mi-motion="minimal"][data-mi-graphics="neon"] body {
+  animation: none;
+}
+
+/* Scan layer. Finer and fainter than Command deck's, because Neon already carries a lot of
+   light — this is the texture underneath it, not the effect itself. */
+:root[data-mi-graphics="neon"] body::after {
+  position: fixed;
+  z-index: 999;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: repeating-linear-gradient(
+    180deg,
+    transparent 0,
+    transparent 2px,
+    color-mix(in srgb, var(--foreground) 6%, transparent) 3px
+  );
+  opacity: 0.13;
+}
+
+/* Lit edges. An inset hairline plus an outer bloom, both keyed to the accent, so a panel
+   reads as backlit rather than as a card with a border. */
+:root[data-mi-graphics="neon"] .card-hover,
+:root[data-mi-graphics="neon"] .stat-card,
+:root[data-mi-graphics="neon"] .surface-depth,
+:root[data-mi-graphics="neon"] .tactile-surface,
+:root[data-mi-graphics="neon"] .workspace-intro,
+:root[data-mi-graphics="neon"] .project-hero,
+:root[data-mi-graphics="neon"] .empty-state {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 14%, transparent),
+    0 0 24px color-mix(in srgb, var(--accent) 9%, transparent);
+}
+
+:root[data-mi-graphics="neon"] .card-hover:hover,
+:root[data-mi-graphics="neon"] .tactile-surface:hover {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 34px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+:root[data-mi-graphics="neon"] .mi-app-header {
+  box-shadow:
+    inset 0 -1px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 8px 26px color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+:root[data-mi-graphics="neon"] .nav-link:hover::after,
+:root[data-mi-graphics="neon"] .nav-link-active::after {
+  box-shadow: 0 0 10px 1px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+
+/* The accent halo. Kept low enough that it never softens a glyph's edge — text stays as
+   legible as it is under every other style, which is the whole point of the contrast work
+   in docs/design/appearance-themes.md. */
+:root[data-mi-graphics="neon"] .text-accent,
+:root[data-mi-graphics="neon"] .text-link {
+  text-shadow: 0 0 14px color-mix(in srgb, var(--accent) 34%, transparent);
+}
+
+:root[data-mi-graphics="neon"] .health-ring-arc,
+:root[data-mi-graphics="neon"] .data-flow-node-shape {
+  filter: drop-shadow(0 0 6px color-mix(in srgb, var(--accent) 45%, transparent));
+}
+
+:root[data-mi-graphics="neon"] .segment-bar-fill {
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+:root[data-mi-graphics="neon"] .command-recipe,
+:root[data-mi-graphics="neon"] .appearance-preview {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 16%, transparent),
+    0 0 30px color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+:root[data-mi-motion="minimal"] {
+  --mi-motion-duration: 0.01ms;
+  --mi-motion-distance: 0px;
+  --mi-motion-scale: 1;
+}
+
+:root[data-mi-motion="expressive"] {
+  --mi-motion-duration: 0.52s;
+  --mi-motion-distance: 10px;
+  --mi-motion-scale: 0.97;
+}
+
+:root[data-mi-motion="cinematic"] {
+  --mi-motion-duration: 0.6s;
+  --mi-motion-distance: 12px;
+  --mi-motion-scale: 0.96;
+}
+
+/*
+ * Ambient motion — the single switch every *continuous* (infinite) animation added for the
+ * Cinematic level binds to, as `animation-play-state: var(--mi-ambient-play)`.
+ *
+ * Declaring the animation is therefore free: it is attached at every motion level but only
+ * ever advances under Cinematic, so Minimal/Subtle/Expressive keep exactly the
+ * enter-once-and-rest behavior they had before, with no frames burned and no per-level
+ * duplication of the rules. `paused` is the default precisely so a new looping animation
+ * that forgets to opt in stays still rather than leaking motion into the quiet levels.
+ *
+ * Three things force it back to `paused`: any level other than Cinematic, an OS
+ * reduced-motion request, and a hidden window (components/ThemeProvider.tsx toggles
+ * .mi-window-hidden off `visibilitychange`). The hidden-window rule also parks the older
+ * infinite animations further down this file — nobody can see them while the window is in
+ * the background, and this is a desktop app where those frames cost real battery.
+ *
+ * lib/theme/useThemeMotion.ts is the JavaScript twin of this, for the two diagrams whose
+ * positions come out of a simulation rather than a stylesheet. Keep the two in step.
+ */
+:root {
+  --mi-ambient-play: paused;
+}
+
+:root[data-mi-motion="cinematic"] {
+  --mi-ambient-play: running;
+}
+
+/* Both overrides have to restate the `[data-mi-motion="cinematic"]` selector to outrank it.
+   A bare `:root` inside a media query is still only one selector against that rule's two,
+   and specificity beats media context — without this the property kept reading `running`
+   under an OS reduced-motion request. The animations themselves were already inert (they
+   live inside `prefers-reduced-motion: no-preference`), but a switch that lies about its
+   own state is exactly the thing the next person will build on. */
+@media (prefers-reduced-motion: reduce) {
+  :root,
+  :root[data-mi-motion="cinematic"] {
+    --mi-ambient-play: paused;
+  }
+}
+
+:root.mi-window-hidden,
+:root.mi-window-hidden[data-mi-motion="cinematic"] {
+  --mi-ambient-play: paused;
+}
+
+:root.mi-window-hidden .typing-dot,
+:root.mi-window-hidden .data-flow-edge,
+:root.mi-window-hidden .activity-spinner,
+:root.mi-window-hidden .loading-scan::after,
+:root.mi-window-hidden .animate-mark-loading g path {
+  animation-play-state: paused;
+}
+
+.mi-app-header {
+  padding-top: env(safe-area-inset-top);
+}
+
+.mi-chat-launcher {
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  cursor: grab;
+}
+
+/* Short character vignettes; the hook spaces idle scenes and stops hidden timers. */
+@keyframes mi-helper-greet {
+  0%, 100% { transform: rotate(0deg); }
+  40% { transform: rotate(-5deg); }
+  70% { transform: rotate(3deg); }
+}
+@keyframes mi-helper-blink {
+  0%, 40%, 60%, 100% { transform: scaleY(1); }
+  50% { transform: scaleY(.15); }
+}
+.mi-avatar-body { transform-origin: 36px 62px; }
+.mi-avatar-eyes, .mi-avatar-mouth, .mi-avatar-thought, .mi-avatar-typing {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.mi-avatar-arm { transform-origin: 50px 48px; }
+.mi-avatar-pencil { transform-origin: 35px 64px; }
+.mi-avatar-snack { transform-origin: 48px 38px; }
+.mi-avatar[data-activity="bored"] .mi-avatar-eyes { transform: scaleY(.45); }
+@keyframes mi-avatar-think { 0%, 100% { transform: rotate(0); } 40%, 70% { transform: rotate(-7deg); } }
+@keyframes mi-avatar-thought { 0%, 100% { opacity: .3; transform: translateY(1px); } 50% { opacity: 1; transform: translateY(-2px); } }
+@keyframes mi-avatar-work { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(1.5px); } }
+@keyframes mi-avatar-type { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@keyframes mi-avatar-look { 0%, 100% { transform: translateX(0); } 25%, 40% { transform: translateX(-3px); } 65%, 80% { transform: translateX(3px); } }
+@keyframes mi-avatar-bored { 0%, 100% { transform: translateY(0) rotate(0); } 40%, 70% { transform: translateY(3px) rotate(5deg); } }
+@keyframes mi-avatar-chew { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.35); } }
+@keyframes mi-avatar-snack { 0%, 100% { transform: translate(6px, 8px) rotate(12deg); } 30%, 70% { transform: translate(-3px, -1px) rotate(-8deg); } }
+@keyframes mi-avatar-draft { 0%, 100% { transform: translateX(0) rotate(0); } 35% { transform: translateX(-5px) rotate(-8deg); } 70% { transform: translateX(3px) rotate(5deg); } }
+@keyframes mi-avatar-wave { 0%, 100% { transform: rotate(0); } 25%, 65% { transform: rotate(-16deg); } 45%, 85% { transform: rotate(10deg); } }
+@keyframes mi-avatar-dance { 0%, 100% { transform: rotate(0) translateY(0); } 25% { transform: rotate(-9deg) translateY(-2px); } 75% { transform: rotate(9deg) translateY(-2px); } }
+@keyframes mi-avatar-jump { 0%, 100% { transform: translateY(0) scaleY(1); } 20%, 85% { transform: translateY(2px) scaleY(.92); } 50% { transform: translateY(-4px) scale(.9); } }
+@keyframes mi-avatar-breakdance { 0%, 100% { transform: translateY(0) scale(1) rotate(0); } 20% { transform: translateY(10px) scale(.6) rotate(-90deg); } 50% { transform: translateY(10px) scale(.6) rotate(-270deg); } 80% { transform: translateY(10px) scale(.6) rotate(-450deg); } }
+@keyframes mi-avatar-spin { 0%, 100% { transform: scaleX(1); } 25%, 75% { transform: scaleX(.12); } 50% { transform: scaleX(-1); } }
+@keyframes mi-avatar-sleep { 0%, 100% { transform: translateY(2px) rotate(-6deg) scaleY(.96); } 50% { transform: translateY(1px) rotate(-6deg) scaleY(1); } }
+@keyframes mi-avatar-walk { 0%, 100% { transform: translateX(0) translateY(0); } 25% { transform: translateX(-3px) translateY(-1px) rotate(-3deg); } 75% { transform: translateX(3px) translateY(-1px) rotate(3deg); } }
+@keyframes mi-avatar-step { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(2px, -3px); } }
+@keyframes mi-avatar-angry { 0%, 100% { transform: rotate(0); } 30%, 60% { transform: rotate(-3deg); } 45%, 75% { transform: rotate(3deg); } }
+@keyframes mi-avatar-tear { 0%, 100% { opacity: .3; transform: translateY(0); } 65% { opacity: 1; transform: translateY(3px); } }
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-mi-motion="minimal"]) .mi-helper-launcher:is(:hover, :focus-visible) .mi-avatar[data-animated="true"][data-activity="idle"] .mi-avatar-body {
+    animation: mi-helper-greet .65s ease-out;
+  }
+  :root:not([data-mi-motion="minimal"]) .mi-helper-launcher:is(:hover, :focus-visible) .mi-avatar[data-animated="true"][data-activity="idle"] .mi-avatar-eyes {
+    animation: mi-helper-blink .8s ease-out;
+  }
+  :root:not([data-mi-motion="minimal"]) .mi-avatar[data-animated="true"] {
+    &[data-activity="dancing"] .mi-avatar-body { animation: mi-avatar-dance 1s ease-in-out 6; }
+    &[data-activity="dancing"] .mi-avatar-arm { animation: mi-avatar-wave 1s ease-in-out 6; }
+    &[data-activity="jumping"] .mi-avatar-body,
+    &[data-activity="happy"] .mi-avatar-body { animation: mi-avatar-jump 1.2s ease-in-out 5; }
+    &[data-activity="singing"] .mi-avatar-body { animation: mi-avatar-dance 2s ease-in-out 3; }
+    &[data-activity="singing"] .mi-avatar-mouth { animation: mi-avatar-chew .75s ease-in-out 8; }
+    &[data-activity="singing"] .mi-avatar-notes { animation: mi-avatar-thought 2s ease-in-out 3; }
+    &[data-activity="breakdancing"] .mi-avatar-body { transform-origin: 36px 40px; animation: mi-avatar-breakdance 3s ease-in-out 2; }
+    &[data-activity="spinning"] .mi-avatar-body { transform-origin: 36px 40px; animation: mi-avatar-spin 1.5s ease-in-out 4; }
+    &[data-activity="sleeping"] .mi-avatar-body { animation: mi-avatar-sleep 3s ease-in-out 2; }
+    &[data-activity="sleeping"] .mi-avatar-sleep { animation: mi-avatar-thought 3s ease-in-out 2; }
+    &[data-activity="walking"] .mi-avatar-body { animation: mi-avatar-walk 1s ease-in-out 6; }
+    &[data-activity="walking"] .mi-avatar-foot-left { animation: mi-avatar-step .8s ease-in-out 7; }
+    &[data-activity="walking"] .mi-avatar-foot-right { animation: mi-avatar-step .8s ease-in-out -.4s 7; }
+    &[data-activity="angry"] .mi-avatar-body { animation: mi-avatar-angry 2s ease-in-out 3; }
+    &[data-activity="sad"] .mi-avatar-body { animation: mi-avatar-bored 6s ease-in-out; }
+    &[data-activity="sad"] .mi-avatar-tear { animation: mi-avatar-tear 2s ease-in-out 3; }
+    &[data-activity="thinking"] .mi-avatar-body { animation: mi-avatar-think 3s ease-in-out 2; }
+    &[data-activity="thinking"] .mi-avatar-thought { animation: mi-avatar-thought 2s ease-in-out 3; }
+    &[data-activity="working"] .mi-avatar-body { animation: mi-avatar-work .6s ease-in-out 10; }
+    &[data-activity="working"] .mi-avatar-typing { animation: mi-avatar-type .6s ease-in-out 10; }
+    &[data-activity="looking"] .mi-avatar-eyes { animation: mi-avatar-look 4s ease-in-out; }
+    &[data-activity="bored"] .mi-avatar-body { animation: mi-avatar-bored 6s ease-in-out; }
+    &[data-activity="eating"] .mi-avatar-snack { animation: mi-avatar-snack 2s ease-in-out 3; }
+    &[data-activity="eating"] .mi-avatar-mouth { animation: mi-avatar-chew .4s ease-in-out 15; }
+    &[data-activity="drafting"] .mi-avatar-pencil { animation: mi-avatar-draft 1.5s ease-in-out 4; }
+    &[data-activity="drafting"] .mi-avatar-body { animation: mi-avatar-think 3s ease-in-out 2; }
+    &[data-activity="waving"] .mi-avatar-arm { animation: mi-avatar-wave 2s ease-in-out; }
+    &[data-activity="waving"] .mi-avatar-body { animation: mi-helper-greet 2s ease-in-out; }
+  }
+}
+
+/* Dragging the bubble (components/ChatLauncherDock.tsx). While a drag is in flight the
+   inline left/top follow the pointer every frame, so a transition there would fight the
+   pointer and lag behind it -- the easing belongs only to the release, when the bubble
+   settles against the edge it snapped to. */
+.mi-chat-launcher-dragging {
+  cursor: grabbing;
+  transition: none;
+  /* A mouse drag would otherwise select the text it passes over. */
+  user-select: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mi-chat-launcher-settling {
+    transition: left 0.32s cubic-bezier(0.16, 1, 0.3, 1), top 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+:root[data-mi-motion="minimal"] .mi-chat-launcher-settling {
+  transition: none;
+}
+
+.mi-chat-launcher-dragging > * {
+  transform: scale(1.06);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 26%, transparent);
+}
+
+.mi-chat-window {
+  left: max(1rem, env(safe-area-inset-left));
+  right: max(1rem, env(safe-area-inset-right));
+  bottom: max(1rem, env(safe-area-inset-bottom));
+}
+
+@media (min-width: 640px) {
+  .mi-chat-launcher {
+    right: 1.5rem;
+    bottom: 1.5rem;
+  }
+
+  .mi-chat-window {
+    left: auto;
+    right: 1.5rem;
+    bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+.mi-terminal,
+.mi-terminal .xterm,
+.mi-terminal .xterm-rows {
+  font-variant-ligatures: none;
+  letter-spacing: 0;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mi-terminal-shell {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background: var(--background);
+  box-shadow:
+    0 18px 50px rgb(2 8 15 / 20%),
+    inset 0 1px 0 rgb(255 255 255 / 5%);
+}
+
+/* Inside a pop-out card window the OS-less titlebar already frames the shell. */
+.mi-terminal-shell-flush {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.mi-terminal-titlebar {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 80%),
+    var(--background);
+  color: var(--foreground);
+}
+
+.mi-terminal-surface {
+  position: relative;
+  overscroll-behavior: contain;
+  background:
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
+    var(--background);
+  background-size: 24px 24px;
+}
+
+.mi-terminal-surface::before {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  content: "";
+  background: linear-gradient(180deg, rgb(255 255 255 / 1.5%), transparent 14%);
+}
+
+.mi-terminal .xterm {
+  height: 100%;
+}
+
+.mi-terminal-viewport {
+  position: absolute;
+  inset: 14px 15px 12px;
+  overflow: hidden;
+}
+
+.mi-terminal .xterm-viewport {
+  scrollbar-color: rgb(117 174 215 / 35%) transparent;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  overscroll-behavior: contain;
+}
+
+.mi-terminal .xterm-screen {
+  text-shadow: none;
+}
+
+.mi-terminal .xterm-viewport::-webkit-scrollbar {
+  width: 11px;
+}
+
+.mi-terminal .xterm-viewport::-webkit-scrollbar-track {
+  background: rgb(0 0 0 / 18%);
+}
+
+.mi-terminal .xterm-viewport::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgb(117 174 215 / 35%);
+  background-clip: padding-box;
+}
+
+/*
+ * Motion — two keyframes, used sparingly and tied to the brush/ink concept
+ * rather than generic SaaS fade/slide. Gated on prefers-reduced-motion so
+ * motion is off entirely for anyone who's asked for that; the .animate-*
+ * classes are otherwise inert (no animation-name) when motion is reduced.
+ */
+@keyframes ink-bloom {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(var(--mi-motion-distance));
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes route-enter {
+  from {
+    opacity: 0;
+    filter: blur(3px);
+    transform: translateY(var(--mi-motion-distance)) scale(var(--mi-motion-scale));
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes status-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes loading-scan {
+  from {
+    transform: translateX(-110%);
+  }
+  to {
+    transform: translateX(310%);
+  }
+}
+
+@keyframes status-check-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.55) rotate(-12deg);
+  }
+  70% {
+    transform: scale(1.08) rotate(2deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes typing-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes mark-flick-in {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.mi-window-drag {
+  -webkit-app-region: drag;
+  user-select: none;
+}
+
+.mi-window-no-drag,
+.mi-window-drag button,
+.mi-window-drag input,
+.mi-window-drag select,
+.mi-window-drag textarea {
+  -webkit-app-region: no-drag;
+}
+
+@keyframes blueprint-draw {
+  from {
+    stroke-dashoffset: 120;
+    opacity: 0;
+  }
+  to {
+    stroke-dashoffset: 0;
+    opacity: 0.25;
+  }
+}
+
+@keyframes data-flow-travel {
+  to {
+    stroke-dashoffset: -28;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-ink-bloom {
+    animation: ink-bloom 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .animate-fade-in-up {
+    animation: fade-in-up var(--mi-motion-duration) cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  /* `backwards`, never `forwards`/`both`: this animation ends on the element's own natural
+     state, so keeping the final frame changes nothing visually -- but a retained transform
+     and filter make the wrapper the containing block for every `position: fixed` descendant
+     for as long as the page is open. That is what left the pop-out terminal and the floating
+     Personal chat rendering into a zero-height box, i.e. an empty window. */
+  .animate-route-enter {
+    transform-origin: 50% 0;
+    animation: route-enter var(--mi-motion-duration) cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  .typing-dot {
+    animation: typing-pulse 1.2s ease-in-out infinite;
+  }
+  .typing-dot:nth-child(2) {
+    animation-delay: 0.15s;
+  }
+  .typing-dot:nth-child(3) {
+    animation-delay: 0.3s;
+  }
+  /* Full-screen loading mark (app/loading.tsx) — crossbar and spine stay
+     put; only the four flicks (grouped in a <g>) fade in on their own
+     delay, one after another, echoing how the glyph is actually drawn
+     rather than a generic spinner. */
+  .animate-mark-loading g path {
+    animation: mark-flick-in 1.6s ease-in-out infinite;
+  }
+  .animate-mark-loading g path:nth-of-type(2) {
+    animation-delay: 0.2s;
+  }
+  .animate-mark-loading g path:nth-of-type(3) {
+    animation-delay: 0.4s;
+  }
+  .animate-mark-loading g path:nth-of-type(4) {
+    animation-delay: 0.6s;
+  }
+  .project-identity-lines {
+    stroke-dasharray: 120;
+    animation: blueprint-draw 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .mode-icon {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .data-flow-edge {
+    animation: data-flow-travel 3s linear infinite;
+  }
+  .activity-spinner {
+    animation: status-orbit 0.8s linear infinite;
+  }
+  .activity-check {
+    animation: status-check-in 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+  .loading-scan::after {
+    animation: loading-scan 1.5s ease-in-out infinite;
+  }
+  .group:hover .mode-icon,
+  .mode-icon:hover {
+    transform: rotate(-2deg) scale(1.04);
+  }
+}
+
+:root[data-mi-motion="minimal"] .animate-ink-bloom,
+:root[data-mi-motion="minimal"] .animate-fade-in-up,
+:root[data-mi-motion="minimal"] .animate-route-enter,
+:root[data-mi-motion="minimal"] .project-identity-lines,
+:root[data-mi-motion="minimal"] .data-flow-edge,
+:root[data-mi-motion="minimal"] .mode-icon,
+:root[data-mi-motion="minimal"] .loading-scan::after,
+:root[data-mi-motion="minimal"] .animate-mark-loading g path {
+  animation: none;
+}
+
+:root[data-mi-motion="expressive"] .animate-route-enter {
+  filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--accent) 6%, transparent));
+}
+
+:root[data-mi-motion="cinematic"] .animate-route-enter {
+  filter: drop-shadow(0 14px 34px color-mix(in srgb, var(--accent) 10%, transparent));
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Cinematic ambient motion.
+ *
+ * Everything below loops forever, so everything below binds
+ * `animation-play-state: var(--mi-ambient-play)` (see the switch above). None of it moves
+ * an element far enough to change what that element *means*: a drifting diagram bubble
+ * stays unambiguously the same bubble, a sweeping ring tracer sits outside the arc that
+ * carries the actual score, and a sheen passes over a bar without changing its length.
+ * Decorative motion never encodes data here — the resting frame is still the honest one.
+ * ---------------------------------------------------------------------------
+ */
+
+/* Diagram bubbles (components/DataFlowMap.tsx). Each node gets its own --drift-* values,
+   derived from its index so server and client agree and the whole field never pulses in
+   unison. Translate only: a transform on an SVG <g> is composited, so a field of drifting
+   bubbles costs about what one bubble costs. */
+@keyframes neon-drift {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(var(--drift-x, 5px), calc(var(--drift-y, 5px) * -1));
+  }
+  50% {
+    transform: translate(0, var(--drift-y, 5px));
+  }
+  75% {
+    transform: translate(calc(var(--drift-x, 5px) * -1), calc(var(--drift-y, 5px) * -0.5));
+  }
+}
+
+/* The tracer that circles the health ring. Deliberately a *separate* circle from
+   .health-ring-arc: the arc encodes the score and must never spin, so the motion lives on
+   a short dash orbiting the same radius. */
+@keyframes ring-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ring-glow {
+  0%,
+  100% {
+    opacity: 0.88;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* A specular pass across a panel, the way light travels over a screen. Drawn on a
+   pseudo-element so it never touches the panel's own background or its children. */
+@keyframes holo-sheen {
+  0% {
+    transform: translateX(-120%) skewX(-18deg);
+  }
+  55%,
+  100% {
+    transform: translateX(320%) skewX(-18deg);
+  }
+}
+
+@keyframes meter-sheen {
+  0% {
+    transform: translateX(-100%);
+  }
+  60%,
+  100% {
+    transform: translateX(400%);
+  }
+}
+
+/* The Neon deck's drafting grid, drifting exactly one cell so the loop is seamless. */
+@keyframes grid-drift {
+  to {
+    background-position: 0 0, 28px 28px, 28px 28px;
+  }
+}
+
+@keyframes neon-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 16px 2px color-mix(in srgb, var(--accent) 26%, transparent);
+  }
+}
+
+/* Attention statuses in the QAQC and lead lists. A spreading ring only — never the badge's
+   color, which is what actually carries the status. */
+@keyframes status-alert-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 26%, transparent);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 0%, transparent);
+  }
+}
+
+@keyframes caret-blink {
+  0%,
+  45% {
+    opacity: 1;
+  }
+  55%,
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Knowledge-graph links. The dash pattern itself is applied only at Cinematic, so the
+   links stay plain solid strokes at every quieter level rather than silently becoming a
+   different drawing that merely happens not to move. */
+:root[data-mi-motion="cinematic"] .edge-charge {
+  stroke-dasharray: 4 8;
+  stroke: var(--border-strong);
+}
+
+@keyframes edge-charge {
+  to {
+    stroke-dashoffset: -56;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .ambient-drift {
+    animation: neon-drift var(--drift-duration, 9s) ease-in-out infinite;
+    animation-delay: var(--drift-delay, 0s);
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .health-ring-sweep {
+    /* fill-box, not the default view-box: without it the origin is the whole SVG's
+       viewport corner and the dash swings in a wide arc instead of orbiting the ring. */
+    transform-box: fill-box;
+    transform-origin: 50% 50%;
+    animation: ring-sweep 3.6s linear infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .holo-sheen::before {
+    animation: holo-sheen 7s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .meter-sheen::after {
+    animation: meter-sheen 4.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .neon-breathe {
+    animation: neon-breathe 3.4s ease-in-out infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .status-alert {
+    animation: status-alert-pulse 2.4s ease-out infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .ambient-caret {
+    animation: caret-blink 1.15s steps(1, end) infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+
+  .edge-charge {
+    animation: edge-charge 1.6s linear infinite;
+    animation-play-state: var(--mi-ambient-play);
+  }
+}
+
+/* Minimal turns the decoration off outright rather than merely pausing it, so nothing is
+   left stranded mid-sweep on a frozen frame. */
+:root[data-mi-motion="minimal"] .ambient-drift,
+:root[data-mi-motion="minimal"] .health-ring-sweep,
+:root[data-mi-motion="minimal"] .holo-sheen::before,
+:root[data-mi-motion="minimal"] .meter-sheen::after,
+:root[data-mi-motion="minimal"] .neon-breathe,
+:root[data-mi-motion="minimal"] .status-alert,
+:root[data-mi-motion="minimal"] .ambient-caret,
+:root[data-mi-motion="minimal"] .edge-charge {
+  animation: none;
+}
+
+/* The sweep, the sheens and the caret are pure decoration, so they are not drawn at all
+   below Cinematic — the quieter levels do not carry an invisible extra circle, gradient or
+   glyph they will never show. */
+.health-ring-sweep,
+.holo-sheen::before,
+.meter-sheen::after,
+.ambient-caret {
+  display: none;
+}
+
+:root[data-mi-motion="cinematic"] .health-ring-sweep {
+  display: block;
+}
+
+:root[data-mi-motion="cinematic"] .ambient-caret {
+  display: inline-block;
+}
+
+.holo-sheen {
+  position: relative;
+  isolation: isolate;
+}
+
+:root[data-mi-motion="cinematic"] .holo-sheen::before {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  display: block;
+  width: 28%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent,
+    color-mix(in srgb, var(--accent) 11%, transparent),
+    transparent
+  );
+}
+
+.meter-sheen {
+  position: relative;
+  overflow: hidden;
+}
+
+:root[data-mi-motion="cinematic"] .meter-sheen::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  display: block;
+  width: 25%;
+  content: "";
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--background) 55%, transparent),
+    transparent
+  );
+}
+
+/*
+ * Counting figures (components/OverviewGraphics.tsx's MetricCounter).
+ *
+ * A registered custom property is the only value in CSS that can be *interpolated* as a
+ * number, which is what makes a count-up possible with no client JavaScript at all — the
+ * KPI cards, the list metrics and the health score all stay server components. The moving
+ * digits are painted by a pseudo-element's counter(); the true figure is always present as
+ * real text in the same element for assistive tech, selection and copy/paste, which is
+ * what MetricCounter renders.
+ *
+ * This is a deliberate, narrow exception to the rule stated at the top of
+ * components/OverviewGraphics.tsx that these pieces only ever render a number the page
+ * already had: for the length of one animation the *displayed* digits are lower than the
+ * real figure. It runs only at Cinematic, only once on mount, and always lands on the true
+ * value. Every other level prints the real number from the very first frame.
+ */
+@property --mi-count {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
+
+@keyframes count-up {
+  from {
+    --mi-count: 0;
+  }
+}
+
+.metric-counter::before {
+  counter-reset: mi-count var(--mi-count-to, 0);
+  content: counter(mi-count);
+}
+
+:root[data-mi-motion="cinematic"] .metric-counter::before {
+  --mi-count: var(--mi-count-to, 0);
+  counter-reset: mi-count var(--mi-count);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-mi-motion="cinematic"] .metric-counter::before {
+    animation: count-up 1.1s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * 8-bit icon motion.
+ *
+ * What actually makes animation read as "8-bit" is not the artwork — it is the
+ * *timing*. A sprite holds a pose for a whole frame and then snaps to the next one; it
+ * never eases. So every keyframe set below is driven by `steps()`, moves by whole pixels,
+ * and uses three or four poses at most. Easing anything here would immediately turn it
+ * back into ordinary modern UI motion.
+ *
+ * This rides the same Cinematic gate as the rest of the ambient system: at Subtle and
+ * Expressive the icons keep exactly the smooth `.mode-icon` hover they have always had.
+ * The icons themselves are untouched — components/AppIcon.tsx still draws the same 24x24
+ * line set, so nothing here costs legibility at 14px once a pose settles.
+ * ---------------------------------------------------------------------------
+ */
+
+/* Two poses, one whole pixel apart. `steps(1, jump-none)` is what keeps it a snap rather
+   than a float — the icon is at 0 or at -1px and never in between. */
+@keyframes sprite-bob {
+  0%,
+  49.9% {
+    transform: translateY(0);
+  }
+  50%,
+  100% {
+    transform: translateY(-1px);
+  }
+}
+
+/* The pop-in. Four held poses: absent, squashed, overshot, settled — the shape of a sprite
+   being blitted onto the screen. */
+@keyframes pixel-materialize {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+  75% {
+    opacity: 1;
+    transform: scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Hover response: four discrete poses, whole-pixel offsets, no rotation in between. */
+@keyframes sprite-poke {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(1px, -1px);
+  }
+  50% {
+    transform: translate(-1px, -2px);
+  }
+  75% {
+    transform: translate(1px, -1px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Scanlines drifting down the glyph, one stripe period per cycle so the loop is seamless.
+   Deliberately a *tiling* mask in pixel units, not a percentage-positioned one: percentage
+   mask-position resolves against (element size - mask size), so an oversized stencil walks
+   clean off a 24px icon and blanks it entirely. This version always covers the glyph. */
+@keyframes pixel-wipe {
+  from {
+    mask-position: 0 0;
+  }
+  to {
+    mask-position: 0 4px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  :root[data-mi-motion="cinematic"] {
+    /* Every AppIcon blits in. `backwards`, never `forwards`: the animation ends on the
+       icon's own natural state, and a retained transform on an inline element is the same
+       containing-block hazard documented at .animate-route-enter. */
+    .pixel-icon {
+      animation: pixel-materialize 0.32s steps(1, end) backwards;
+    }
+
+    /* The prominent icons — card headers, workspace intros, list rows — idle-bob. The
+       small inline ones deliberately do not: a whole page of jiggling 14px glyphs is
+       noise, not life. */
+    .mode-icon {
+      animation: sprite-bob 1.6s steps(1, end) infinite;
+      animation-play-state: var(--mi-ambient-play);
+    }
+
+    /* Staggered so a grid of stat cards ripples instead of pulsing as one block. */
+    .stat-card:nth-child(2n) .mode-icon {
+      animation-delay: 0.4s;
+    }
+    .stat-card:nth-child(3n) .mode-icon {
+      animation-delay: 0.8s;
+    }
+    .stat-card:nth-child(4n) .mode-icon {
+      animation-delay: 1.2s;
+    }
+
+    /* Hover swaps the smooth rotate for a four-frame poke. */
+    .group:hover .mode-icon,
+    .mode-icon:hover,
+    .pixel-icon:hover {
+      transform: none;
+      animation: sprite-poke 0.36s steps(1, end) 1;
+    }
+
+    /* Eight held frames rather than a continuous sweep — the classic sprite spinner. */
+    .activity-spinner {
+      animation: status-orbit 0.8s steps(8, end) infinite;
+    }
+
+    /* The scan stencil, on the one icon per page that anchors the header. It sits on an
+       element that also carries .pixel-icon, so both animations are restated here — the
+       `animation` shorthand would otherwise drop the blit-in — and only the looping one
+       is gated on the ambient switch. */
+    .pixel-wipe {
+      /* The dim band is 45% black rather than transparent: the stripes should read as a
+         scan passing over the icon, not punch holes in a glyph you still need to identify
+         at 24px. */
+      mask-image: repeating-linear-gradient(
+        to bottom,
+        #000 0 3px,
+        rgb(0 0 0 / 45%) 3px 4px
+      );
+      mask-size: 100% 4px;
+      mask-repeat: repeat;
+      animation:
+        pixel-materialize 0.32s steps(1, end) backwards,
+        pixel-wipe 2.6s steps(6, end) infinite;
+      animation-play-state: running, var(--mi-ambient-play);
+    }
+
+  }
+}
+
+/* Minimal disables outright rather than pausing, so nothing is stranded on a held pose. */
+:root[data-mi-motion="minimal"] .pixel-icon,
+:root[data-mi-motion="minimal"] .mode-icon,
+:root[data-mi-motion="minimal"] .pixel-wipe {
+  animation: none;
+  mask-image: none;
+}
+
+/*
+ * The project hero. A faint drafting grid and one corner mark, both keyed to the accent, so
+ * the block reads as a title block on a drawing rather than as a generic dashboard header.
+ * Kept under 6% so it never competes with the text sitting on it, and drawn with gradients
+ * rather than an asset so it recolors with the preset for free.
+ */
+.project-hero {
+  position: relative;
+  background-image:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent), transparent 22rem),
+    linear-gradient(color-mix(in srgb, var(--accent) 3%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 3%, transparent) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+}
+
+.project-hero::after {
+  content: "";
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  border-right: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  pointer-events: none;
+}
+
+/*
+ * Overview graphics (components/OverviewGraphics.tsx). Each of these animates a value
+ * *into* its true position from zero, so the resting frame is always the honest one -- if
+ * the animation never runs (reduced motion, Minimal), the ring and bars simply render at
+ * their real values with no motion at all.
+ */
+@keyframes health-ring-draw {
+  from {
+    stroke-dashoffset: var(--health-ring-circumference);
+  }
+}
+
+@keyframes segment-bar-grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+.segment-bar-fill {
+  transform-origin: left center;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Two animations, two play states: the draw-in must always run — it is how the arc
+     reaches its true value — while only the glow is ambient and so waits for Cinematic. */
+  .health-ring-arc {
+    animation:
+      health-ring-draw 0.9s cubic-bezier(0.16, 1, 0.3, 1) backwards,
+      ring-glow 2.8s ease-in-out infinite;
+    animation-play-state: running, var(--mi-ambient-play);
+  }
+  .segment-bar-fill {
+    animation: segment-bar-grow 0.6s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  }
+  /* The overview's stat and record cards enter in a short cascade rather than all at once.
+     `backwards` only -- see .animate-route-enter for why a retained transform on a wrapper
+     is never acceptable here. */
+  .stat-card {
+    animation-fill-mode: backwards;
+  }
+}
+
+:root[data-mi-motion="minimal"] .health-ring-arc,
+:root[data-mi-motion="minimal"] .segment-bar-fill,
+:root[data-mi-motion="minimal"] .stat-card {
+  animation: none;
+}
+
+:root[data-mi-motion="expressive"] .stat-card:hover .mode-icon {
+  transform: rotate(-3deg) scale(1.08);
+}
+
+.knowledge-graph-grid {
+  background-image:
+    radial-gradient(circle at center, color-mix(in srgb, var(--accent) 7%, transparent), transparent 55%),
+    linear-gradient(color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--border) 55%, transparent) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+}
+
+.data-flow-edge {
+  stroke-dasharray: 3 7;
+  vector-effect: non-scaling-stroke;
+}
+
+.workspace-intro {
+  position: relative;
+  background-image:
+    linear-gradient(90deg, transparent 0 68%, color-mix(in srgb, var(--accent) 5%, transparent) 68%),
+    linear-gradient(color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 6%, transparent) 1px, transparent 1px);
+  background-size: auto, 24px 24px, 24px 24px;
+}
+
+.workspace-intro::after {
+  position: absolute;
+  right: -2.5rem;
+  top: -4.5rem;
+  height: 12rem;
+  width: 12rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, transparent);
+  border-radius: 9999px;
+  content: "";
+  pointer-events: none;
+}
+
+.empty-state {
+  position: relative;
+  background-image:
+    linear-gradient(90deg, transparent 0 76%, color-mix(in srgb, var(--accent) 4%, transparent) 76%),
+    linear-gradient(color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 5%, transparent) 1px, transparent 1px);
+  background-size: auto, 20px 20px, 20px 20px;
+}
+
+.empty-state::after {
+  position: absolute;
+  right: -1.5rem;
+  top: -2.25rem;
+  height: 7rem;
+  width: 7rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 13%, transparent);
+  border-radius: 9999px;
+  content: "";
+  pointer-events: none;
+}
+
+/* Chat widget typing indicator (three dots) — static (no pulse) when
+   prefers-reduced-motion is set, per the gate above. */
+.typing-dot {
+  display: inline-block;
+  height: 0.375rem;
+  width: 0.375rem;
+  border-radius: 9999px;
+  background-color: currentColor;
+  opacity: 0.6;
+}
+
+.activity-indicator {
+  display: inline-flex;
+  height: 1rem;
+  width: 1rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.activity-spinner {
+  height: 0.875rem;
+  width: 0.875rem;
+  border: 1.5px solid color-mix(in srgb, currentColor 24%, transparent);
+  border-top-color: currentColor;
+  border-radius: 9999px;
+}
+
+.activity-check {
+  display: inline-flex;
+  height: 1rem;
+  width: 1rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: var(--status-success);
+  color: var(--status-success-foreground);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  padding: 0.25rem 0.55rem;
+  font-size: 0.65rem;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.status-chip::before {
+  height: 0.35rem;
+  width: 0.35rem;
+  border-radius: 9999px;
+  background: currentColor;
+  content: "";
+}
+
+.status-chip-success {
+  border-color: color-mix(in srgb, var(--status-success-foreground) 34%, transparent);
+  background: color-mix(in srgb, var(--status-success) 74%, transparent);
+  color: var(--status-success-foreground);
+}
+
+.status-chip-attention {
+  border-color: color-mix(in srgb, var(--status-warning-foreground) 34%, transparent);
+  background: color-mix(in srgb, var(--status-warning) 74%, transparent);
+  color: var(--status-warning-foreground);
+}
+
+.status-chip-missing {
+  color: var(--muted-foreground);
+}
+
+.loading-scan {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-scan::after {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  content: "";
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 68%, transparent), transparent);
+}
+
+.appearance-hero {
+  position: relative;
+  background-image:
+    radial-gradient(circle at 88% 4%, color-mix(in srgb, var(--accent) 14%, transparent), transparent 16rem),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 58%);
+}
+
+.appearance-hero::after {
+  position: absolute;
+  right: 1.25rem;
+  bottom: 0.8rem;
+  width: 4.5rem;
+  height: 1px;
+  pointer-events: none;
+  content: "";
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
+  box-shadow:
+    0 -0.4rem color-mix(in srgb, var(--accent) 12%, transparent),
+    0 0.4rem color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.appearance-preview {
+  position: relative;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--accent) 4%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--accent) 4%, transparent) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+.appearance-preview i {
+  display: block;
+  width: 0.3rem;
+  height: 0.3rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  opacity: 0.35;
+}
+
+.nav-link {
+  position: relative;
+  min-height: 2rem;
+}
+
+.nav-link::after {
+  position: absolute;
+  right: 50%;
+  bottom: -1rem;
+  left: 50%;
+  height: 2px;
+  border-radius: 9999px 9999px 0 0;
+  content: "";
+  background: var(--accent);
+  opacity: 0;
+  transition:
+    right 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    left 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.18s ease;
+}
+
+.nav-link:hover::after,
+.nav-link-active::after {
+  right: 0;
+  left: 0;
+  opacity: 1;
+}
+
+:root[data-mi-graphics="terminal"] .command-recipe,
+:root[data-mi-graphics="terminal"] .appearance-preview {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent) 9%, transparent),
+    0 0 28px color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+/* Shared hover-lift treatment for interactive cards. Border-color-on-hover
+   stays each call site's own choice (usually Tailwind's hover:border-accent)
+   — this only adds the lift + light-mode shadow / dark-mode background
+   brighten on top of that, since a drop shadow doesn't read against a
+   near-black page. */
+.card-hover {
+  transition:
+    transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.2s ease,
+    background-color 0.2s ease,
+    border-color 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-2px);
+}
+
+.card-hover:active {
+  transform: translateY(0) scale(0.985);
+}
+
+/* Form controls in the workspace editors (architect tools, site reports, decisions, meetings)
+   are written as `className="control"` -- 91 of them -- but the class was never defined, so
+   every one of those inputs, selects and textareas fell back to the browser's native styling:
+   white boxes with black text sitting in a near-black UI. Defining it here fixes all of them at
+   once and keeps them matching the inline Tailwind controls used elsewhere
+   (`rounded-md border border-border bg-background px-3 py-2 text-sm`). */
+.control {
+  display: block;
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid var(--border);
+  background-color: var(--background);
+  padding: 0.5rem 0.75rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  color: var(--foreground);
+}
+
+.control:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.control:disabled {
+  opacity: 0.5;
+}
+
+/* Native dates, selects, radios and scrollbars inherit color-scheme from the resolved
+   data-mi-theme above. Do not invert calendar icons based on the OS: it would undo the
+   native dark icon and ignore an explicit Light/Dim/Dark choice. */
+
+/* Tactile depth is reserved for controls and navigation surfaces. The short
+   lift confirms hover, while the press state confirms activation without
+   moving surrounding layout. Decorative/operational data remains still. */
+.surface-depth,
+.tactile-surface {
+  box-shadow:
+    0 1px 2px rgb(10 10 10 / 5%),
+    0 10px 28px rgb(10 10 10 / 5%);
+}
+
+.tactile-surface,
+.tactile-control {
+  transition:
+    transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.18s ease,
+    background-color 0.18s ease,
+    border-color 0.18s ease,
+    color 0.18s ease;
+}
+
+.tactile-surface:hover {
+  transform: perspective(700px) translateY(-3px) rotateX(0.35deg);
+  box-shadow:
+    0 2px 4px rgb(10 10 10 / 6%),
+    0 16px 36px rgb(10 10 10 / 9%);
+}
+
+.tactile-control:not(:disabled):hover {
+  transform: translateY(-1px);
+}
+
+.tactile-surface:active,
+.tactile-control:not(:disabled):active {
+  transform: translateY(0) scale(0.985);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  body,
+  .mi-app-header {
+    transition:
+      background-color var(--mi-motion-duration) ease,
+      color var(--mi-motion-duration) ease,
+      border-color var(--mi-motion-duration) ease;
+  }
+
+  :root[data-mi-motion="expressive"] .card-hover:hover {
+    transform: translateY(-4px) scale(1.006);
+  }
+
+  :root[data-mi-motion="expressive"] .tactile-surface:hover {
+    transform: perspective(700px) translateY(-5px) rotateX(0.7deg);
+  }
+}
+
+:root[data-mi-motion="minimal"] .card-hover,
+:root[data-mi-motion="minimal"] .tactile-surface,
+:root[data-mi-motion="minimal"] .tactile-control,
+:root[data-mi-motion="minimal"] .progressive-disclosure > summary::before,
+:root[data-mi-motion="minimal"] .nav-link::after {
+  transition: none;
+}
+
+:root[data-mi-motion="minimal"] .card-hover:hover,
+:root[data-mi-motion="minimal"] .card-hover:active,
+:root[data-mi-motion="minimal"] .tactile-surface:hover,
+:root[data-mi-motion="minimal"] .tactile-surface:active,
+:root[data-mi-motion="minimal"] .tactile-control:not(:disabled):hover,
+:root[data-mi-motion="minimal"] .tactile-control:not(:disabled):active {
+  transform: none;
+}
+
+.project-workspace-nav {
+  position: relative;
+  overflow: hidden;
+  background-image:
+    radial-gradient(circle at 92% -25%, color-mix(in srgb, var(--accent) 13%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 3%, transparent), transparent 48%);
+}
+
+.project-workspace-nav::after {
+  position: absolute;
+  right: 1.15rem;
+  top: 0.75rem;
+  width: 2.5rem;
+  height: 1px;
+  content: "";
+  pointer-events: none;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: 0 0.42rem 0 color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.progressive-disclosure > summary {
+  list-style: none;
+}
+
+.progressive-disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.progressive-disclosure > summary::before {
+  display: inline-block;
+  margin-right: 0.55rem;
+  content: "+";
+  color: var(--accent);
+  transition: transform 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.progressive-disclosure[open] > summary::before {
+  transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card-hover,
+  .tactile-surface,
+  .tactile-control,
+  .progressive-disclosure > summary::before {
+    transition: none;
+  }
+  .card-hover:hover,
+  .card-hover:active,
+  .tactile-surface:hover,
+  .tactile-surface:active,
+  .tactile-control:not(:disabled):hover,
+  .tactile-control:not(:disabled):active {
+    transform: none;
+  }
+}
+/* Explicit appearance settings win over the OS preference. The media-query
+   forms remain only as a no-JS fallback before ThemeProvider resolves an
+   explicit data-mi-theme attribute. */
+:root[data-mi-theme="light"] .card-hover:hover {
+  box-shadow: var(--shadow-sm);
+}
+
+:root[data-mi-theme="dark"] .card-hover:hover {
+  background-color: var(--muted);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-mi-theme]) .card-hover:hover {
+    box-shadow: var(--shadow-sm);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-mi-theme]) .card-hover:hover {
+    background-color: var(--muted);
+  }
+}
+
+/* Drawing-desk styles use existing palette tokens, preserving every color mode. */
+:root[data-mi-graphics="pencil"] body {
+  background-image: repeating-linear-gradient(118deg, color-mix(in srgb, var(--foreground) 2.5%, transparent) 0 1px, transparent 1px 7px);
+  background-attachment: fixed;
+}
+:root[data-mi-graphics="pencil"] :is(.workspace-intro, .project-hero, .project-workspace-nav, .appearance-preview, .tactile-surface) {
+  border-style: double;
+  border-width: 3px;
+  border-radius: 3px 9px 4px 7px;
+  box-shadow: 3px 3px 0 color-mix(in srgb, var(--foreground) 7%, transparent);
+}
+:root[data-mi-graphics="pencil"] .mi-app-header {
+  border-bottom-style: double;
+  border-bottom-width: 3px;
+}
+:root[data-mi-graphics="tracing"] body {
+  background-image: radial-gradient(color-mix(in srgb, var(--accent) 15%, transparent) 0.8px, transparent 0.8px);
+  background-size: 18px 18px;
+  background-attachment: fixed;
+}
+:root[data-mi-graphics="tracing"] :is(.workspace-intro, .project-hero, .project-workspace-nav, .appearance-preview, .tactile-surface) {
+  border-radius: 3px;
+  box-shadow: 3px 3px 0 var(--background), 4px 4px 0 var(--border), 7px 7px 0 var(--background), 8px 8px 0 var(--border);
+}
+@keyframes mi-plan-draft {
+  from { stroke-dashoffset: 1; opacity: 0.2; }
+  to { stroke-dashoffset: 0; opacity: 1; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  :root:not([data-mi-motion="minimal"]) .mi-plan-outline path {
+    stroke-dasharray: 1;
+    animation: mi-plan-draft 1.8s ease-out both;
+  }
+  :root:not([data-mi-motion="minimal"]) .mi-plan-detail path[pathLength] {
+    stroke-dasharray: 1;
+    animation: mi-plan-draft 1.4s 0.6s ease-out both;
+  }
+}
+:root[data-mi-graphics="pencil"] .mi-plan-drawing {
+  stroke-linejoin: round;
+  filter: drop-shadow(0.6px 0.7px 0 color-mix(in srgb, var(--foreground) 18%, transparent));
+}
