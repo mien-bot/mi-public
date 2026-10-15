@@ -27,6 +27,18 @@ afterEach(() => {
 });
 
 describe("firm-wide chat workspace harness", () => {
+  it("renders the public submission and privacy rules into both agent files", () => {
+    const item = fixture();
+    item.templatePath = path.join(process.cwd(), "installer", "agent-harness", "firm-common-rules.md");
+    const preview = previewFirmHarness(item);
+    for (const file of ["AGENTS.md", "CLAUDE.md"]) {
+      const content = preview.desired.get(file);
+      expect(content).toContain("formal submissions must be unbranded");
+      expect(content).toContain("Verify every PDF in the actual application/upload folder");
+      expect(content).toContain("A public\nsource repository does not authorize publication");
+      expect(content).not.toContain("Every PDF export must carry the Mi mark");
+    }
+  });
   it("rejects an unconfirmed shared data folder and performs no writes", () => {
     const item = fixture();
     expect(() => resolveFirmHarnessRoot(item.dropboxRoot, "")).toThrow(/Confirm the shared Mi data folder/);

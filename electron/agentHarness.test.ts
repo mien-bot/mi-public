@@ -161,6 +161,9 @@ describe("project agent harness", () => {
 
     for (const content of instructions) {
       expect(content).toContain("Mi review-card protocol");
+      expect(content).toContain("formal submissions must be unbranded");
+      expect(content).toContain("Verify every PDF in the actual application/upload folder");
+      expect(content).not.toContain("Every PDF export must carry the Mi mark");
       expect(content).toContain("mi-proposals");
       expect(content).toContain('"kind":"memory-note"');
       expect(content).toContain("decision-record");

@@ -114,6 +114,9 @@ describe("permit-qaqc agent harness", () => {
     const instructions = [preview.desired.get("AGENTS.md"), preview.desired.get("CLAUDE.md")];
     for (const content of instructions) {
       expect(content).toContain("Review only, never a stamp");
+      expect(content).toContain("formal submissions must be unbranded");
+      expect(content).toContain("Verify every PDF in the actual application/upload folder");
+      expect(content).not.toContain("Every PDF export must carry the Mi mark");
       expect(content).toContain("Folder taxonomy is **not** standardized");
       expect(content).toContain("What Mi is");
       expect(content).toContain("tools\\fetch-url.ps1");

@@ -66,6 +66,12 @@ Project/client/lead records, local state, credentials, generated documents, and 
 
 ## Development checks
 
+Start with [AGENTS.md](AGENTS.md) and the [developer start guide](docs/agent-start-here.md).
+See [architecture](docs/code-structure-guide.md), [optional connections](docs/connections.md),
+and [harness maintenance](docs/harness-maintenance.md) for standalone public guidance.
+Formal submission PDFs must remain unbranded; the harness guide explains the clean-copy
+requirements and the limits of the currently branded PDF pipeline.
+
 ```bash
 npm run lint
 npm test
