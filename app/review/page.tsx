@@ -41,9 +41,7 @@ export default async function ReviewInboxPage({ searchParams }: {
           )}
         </div>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Select items from one or several projects, review the changes grouped by workspace,
-          then accept them together. Project knowledge is the default destination; meetings and
-          other records remain available. Publishing to Notion is a separate action from Knowledge.
+          Review, save, or delete draft knowledge.
         </p>
         {scoped && (
           <p className="mt-2 text-sm">

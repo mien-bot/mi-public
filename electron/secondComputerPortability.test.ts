@@ -24,15 +24,15 @@ const roots: string[] = [];
 const LEAD_DROPBOX_PATH = "1.01 LEADS/26_0726_Alpha Ave";
 // Written with backslashes exactly as the Permit QAQC form stores it on Windows. A resolver
 // that splits on "/" alone would silently treat this as one long folder name.
-const ENGAGEMENT_DROPBOX_PATH = "1.00 PROJECTS\\PERMIT QAQC\\03_Beta Ave, Example City_SampleConsultant\\Received\\26_0726";
-const PROJECT_DROPBOX_PATH = "1.00 PROJECTS/06_Gamma";
+const ENGAGEMENT_DROPBOX_PATH = "Projects\\PERMIT QAQC\\03_Beta Ave, Example City_SampleConsultant\\Received\\26_0726";
+const PROJECT_DROPBOX_PATH = "Projects/06_Gamma";
 
 function machine(dropboxFolderName: string) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "mi-second-computer-"));
   roots.push(base);
   const dropboxRoot = path.join(base, dropboxFolderName);
   const localDataRoot = path.join(base, "local-app-data");
-  const shared = path.join(dropboxRoot, "7.00 Mi Data");
+  const shared = path.join(dropboxRoot, "Mi Data");
 
   fs.mkdirSync(path.join(shared, "leads", "alpha"), { recursive: true });
   fs.mkdirSync(path.join(shared, "permit-qaqc", "beta"), { recursive: true });
@@ -63,7 +63,7 @@ function machine(dropboxFolderName: string) {
 
   const settings = {
     dropboxRoot,
-    dropboxFirmDataPath: "7.00 Mi Data",
+    dropboxFirmDataPath: "Mi Data",
     dropboxFirmDataMigrated: true,
     sharedDataRootEnabled: true,
   };
@@ -94,7 +94,7 @@ describe("a second computer with its own Dropbox folder name", () => {
 
   it("reads the firm's shared Mi data through each machine's own absolute root", () => {
     for (const { dropboxRoot, runtimeDataRoot } of machines()) {
-      expect(underRoot(dropboxRoot, runtimeDataRoot)).toBe("7.00 Mi Data");
+      expect(underRoot(dropboxRoot, runtimeDataRoot)).toBe("Mi Data");
       expect(fs.existsSync(path.join(runtimeDataRoot, "leads", "alpha", "lead.yaml"))).toBe(true);
     }
   });

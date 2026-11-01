@@ -161,13 +161,14 @@ describe("Notion setup checks", () => {
       now: () => new Date("2026-08-01T12:00:00.000Z"),
     });
     expect(result.entryCount).toBe(1);
-    expect(result.window).toEqual({ from: "2026-07-02", to: "2026-11-29" });
+    // Wide enough for the calendar's year view, in either direction.
+    expect(result.window).toEqual({ from: "2025-08-01", to: "2027-09-05" });
 
     const requestBody = JSON.parse(String(fetchMock.mock.calls[1][1]?.body));
     expect(requestBody.filter).toEqual({
       and: [
-        { property: "Date", date: { on_or_after: "2026-07-02" } },
-        { property: "Date", date: { on_or_before: "2026-11-29" } },
+        { property: "Date", date: { on_or_after: "2025-08-01" } },
+        { property: "Date", date: { on_or_before: "2027-09-05" } },
       ],
     });
 

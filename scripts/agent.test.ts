@@ -134,12 +134,12 @@ describe("project agent working directory", () => {
     const repoRoot = path.join(root, "repo");
     const dropboxRoot = path.join(root, "Dropbox");
     const projectDir = path.join(repoRoot, "projects", "demo");
-    const harness = path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi");
+    const harness = path.join(dropboxRoot, "Projects", "Demo", "Mi");
     fs.mkdirSync(projectDir, { recursive: true });
     fs.mkdirSync(harness, { recursive: true });
     fs.writeFileSync(
       path.join(projectDir, "project.yaml"),
-      'name: Demo\ndropbox_path: "1.00 PROJECTS/Demo"\n',
+      'name: Demo\ndropbox_path: "Projects/Demo"\n',
     );
     fs.writeFileSync(path.join(harness, "AGENTS.md"), "rules");
     fs.writeFileSync(path.join(harness, "CLAUDE.md"), "rules");
@@ -151,7 +151,7 @@ describe("project agent working directory", () => {
     );
     expect(fs.statSync(resolved).isDirectory()).toBe(true);
     expect(resolved.toLowerCase()).toMatch(
-      /[\\/]dropbox[\\/]1\.00 projects[\\/]demo[\\/]mi$/,
+      /[\\/]dropbox[\\/]projects[\\/]demo[\\/]mi$/,
     );
   });
 

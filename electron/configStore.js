@@ -20,7 +20,7 @@ const IMPORT_KEYS = new Set([
   "MI_AGENT_CONTEXT_MAX_BYTES",
   "DROPBOX_FIRM_DATA_PATH",
 ]);
-const CREDENTIAL_FIELDS = ["notionToken", "personalNotionToken", "claudeSubscriptionToken", "claudeApiKey", "openAiApiKey"];
+const CREDENTIAL_FIELDS = ["notionToken", "personalNotionToken", "googleRefreshToken", "googleClientSecret", "claudeSubscriptionToken", "claudeApiKey", "openAiApiKey"];
 const CONNECTION_TEST_KINDS = new Set(["claude-cli", "codex-cli", "claude-api", "openai-api"]);
 
 function validTimezone(value) {
@@ -64,6 +64,8 @@ function defaultSettings() {
     notionScheduleDataSourceId: DEFAULT_SCHEDULE_SOURCE,
     codexBin: null,
     claudeBin: null,
+    cadBindings: {},
+    autocadBindings: {},
     agentContextMaxBytes: 250_000,
     importedLegacyAt: null,
     // Background, read-only refresh of data/notion/project-map.json while the desktop app
@@ -114,6 +116,8 @@ function normalizeSettings(input) {
   return {
     ...defaults,
     ...input,
+    cadBindings: require("./cad/nativeClient").normalizeBindings(input?.cadBindings),
+    autocadBindings: require("./cad/nativeClient").normalizeBindings(input?.autocadBindings, "autocad"),
     schemaVersion: CONFIG_SCHEMA_VERSION,
     setupCompleted: input?.setupCompleted === true,
     dropboxRoot: typeof input?.dropboxRoot === "string" && input.dropboxRoot.trim()
@@ -158,6 +162,15 @@ function normalizeSettings(input) {
       : null,
     personalCalendarDateProperty: typeof input?.personalCalendarDateProperty === "string" && input.personalCalendarDateProperty.trim()
       ? input.personalCalendarDateProperty.trim().slice(0, 200)
+      : null,
+    googleClientId: typeof input?.googleClientId === "string" && input.googleClientId.trim()
+      ? input.googleClientId.trim().slice(0, 300)
+      : null,
+    googleCalendarId: typeof input?.googleCalendarId === "string" && input.googleCalendarId.trim()
+      ? input.googleCalendarId.trim().slice(0, 300)
+      : null,
+    googleCalendarName: typeof input?.googleCalendarName === "string" && input.googleCalendarName.trim()
+      ? input.googleCalendarName.trim().slice(0, 200)
       : null,
   };
 }
@@ -258,6 +271,7 @@ function createConfigStore({ userDataPath, secureStorage, miConfigPath: configur
       ...settings,
       hasNotionToken: hasCredential("notionToken"),
       hasPersonalNotionToken: hasCredential("personalNotionToken"),
+      hasGoogleCalendar: hasCredential("googleRefreshToken"),
       hasClaudeSubscriptionToken: hasCredential("claudeSubscriptionToken"),
       hasClaudeApiKey: hasCredential("claudeApiKey"),
       hasOpenAiApiKey: hasCredential("openAiApiKey"),
@@ -356,6 +370,29 @@ function createConfigStore({ userDataPath, secureStorage, miConfigPath: configur
       personalCalendarDateProperty: null,
     });
     return clearCredential("personalNotionToken", "hasPersonalNotionToken");
+  }
+
+  async function setGoogleRefreshToken(token) {
+    await setCredential("googleRefreshToken", token, "Google did not return a usable sign-in.");
+    return { hasGoogleCalendar: true };
+  }
+
+  async function getGoogleRefreshToken() {
+    return getCredential("googleRefreshToken", setGoogleRefreshToken);
+  }
+
+  async function setGoogleClientSecret(secret) {
+    await setCredential("googleClientSecret", secret, "Enter the Google client secret.");
+    return {};
+  }
+
+  async function getGoogleClientSecret() {
+    return getCredential("googleClientSecret", setGoogleClientSecret);
+  }
+
+  function clearGoogleCalendar() {
+    updateSettings({ googleCalendarId: null, googleCalendarName: null });
+    return clearCredential("googleRefreshToken", "hasGoogleCalendar");
   }
 
   async function setClaudeSubscriptionToken(token) {
@@ -472,6 +509,11 @@ function createConfigStore({ userDataPath, secureStorage, miConfigPath: configur
     setPersonalNotionToken,
     getPersonalNotionToken,
     clearPersonalNotionToken,
+    setGoogleRefreshToken,
+    getGoogleRefreshToken,
+    setGoogleClientSecret,
+    getGoogleClientSecret,
+    clearGoogleCalendar,
     setClaudeSubscriptionToken,
     getClaudeSubscriptionToken,
     clearClaudeSubscriptionToken,

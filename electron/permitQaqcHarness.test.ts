@@ -92,14 +92,14 @@ describe("permit-qaqc agent harness", () => {
   });
 
   it("writes into the confirmed Dropbox engagement folder when one is linked", () => {
-    const item = fixture("1.00 PROJECTS/PERMIT QAQC/03_Demo");
-    const dropboxEngagement = path.join(item.dropboxRoot, "1.00 PROJECTS", "PERMIT QAQC", "03_Demo");
+    const item = fixture("Projects/PERMIT QAQC/03_Demo");
+    const dropboxEngagement = path.join(item.dropboxRoot, "Projects", "PERMIT QAQC", "03_Demo");
     fs.mkdirSync(dropboxEngagement, { recursive: true });
     const preview = previewPermitQaqcHarness(item);
     applyPermitQaqcHarnessPreview(preview, { confirmed: true });
     expect(fs.existsSync(path.join(item.engagementDirectory, "Mi"))).toBe(false);
     const engagementDoc = fs.readFileSync(path.join(dropboxEngagement, "Mi", "ENGAGEMENT.md"), "utf8");
-    expect(engagementDoc).toContain("1.00 PROJECTS/PERMIT QAQC/03_Demo");
+    expect(engagementDoc).toContain("Projects/PERMIT QAQC/03_Demo");
   });
 
   it("teaches the installed permit-qaqc rules template's real review-only invariant", () => {
@@ -122,7 +122,7 @@ describe("permit-qaqc agent harness", () => {
       expect(content).toContain("tools\\fetch-url.ps1");
       expect(content).toContain("references/chicago-permit-application-guidance.md");
       expect(content).toContain("current official instructions for the specific review program and portal");
-      expect(content).toContain("Commercial\nConstruction");
+      expect(content).toMatch(/Commercial\r?\nConstruction/);
       expect(content).toContain("Renovation of Structure");
       expect(content).toContain("SPR 2019 CBRC:");
       expect(content).toContain("new append-only inbox entries");
@@ -151,8 +151,8 @@ describe("permit-qaqc agent harness", () => {
   });
 
   it("refreshes existing workspaces while preserving evidence, user files and append-only inbox entries", () => {
-    const item = fixture('1.00 PROJECTS/PERMIT QAQC/03_Demo');
-    const engagement = path.join(item.dropboxRoot,'1.00 PROJECTS/PERMIT QAQC/03_Demo');
+    const item = fixture('Projects/PERMIT QAQC/03_Demo');
+    const engagement = path.join(item.dropboxRoot,'Projects/PERMIT QAQC/03_Demo');
     fs.mkdirSync(engagement,{recursive:true});
     const { harnessRoot } = ensurePermitQaqcHarness(item);
     const oldCopy = fs.readFileSync(path.join(harnessRoot,REFERENCE_PATH),'utf8');
@@ -206,8 +206,8 @@ describe("permit-qaqc agent harness", () => {
     const outside = path.join(path.dirname(item.dropboxRoot),'outside-reference');
     fs.mkdirSync(outside);
     fs.writeFileSync(path.join(outside,'CHICAGO-PERMIT-APPLICATION-GUIDANCE.md'),'Must not read outside the configured root.');
-    fs.mkdirSync(path.join(item.dropboxRoot,'1.00 PROJECTS'));
-    fs.symlinkSync(outside,path.join(item.dropboxRoot,'1.00 PROJECTS','PERMIT QAQC'),'junction');
+    fs.mkdirSync(path.join(item.dropboxRoot,'Projects'));
+    fs.symlinkSync(outside,path.join(item.dropboxRoot,'Projects','PERMIT QAQC'),'junction');
     const preview = previewPermitQaqcHarness(item);
     expect(preview.desired.get(REFERENCE_PATH)).toContain('bundled authorized snapshot');
     expect(preview.desired.get(REFERENCE_PATH)).not.toContain('Must not read outside');
@@ -277,8 +277,8 @@ describe("permit-qaqc agent harness", () => {
   });
 
   it("leaves received evidence untouched and hand-edited files intact when generating unattended", () => {
-    const item = fixture("1.00 PROJECTS/Alpha");
-    const engagementRoot = path.join(item.dropboxRoot, "1.00 PROJECTS", "Alpha");
+    const item = fixture("Projects/Alpha");
+    const engagementRoot = path.join(item.dropboxRoot, "Projects", "Alpha");
     fs.mkdirSync(path.join(engagementRoot, "Received"), { recursive: true });
     fs.writeFileSync(path.join(engagementRoot, "Received", "plans.pdf"), "received drawings\n", "utf8");
 
@@ -294,7 +294,7 @@ describe("permit-qaqc agent harness", () => {
         "submitting_firm: SampleConsultant",
         "status: complete",
         "engagement_number: '03'",
-        `dropbox_path: ${JSON.stringify("1.00 PROJECTS/Alpha")}`,
+        `dropbox_path: ${JSON.stringify("Projects/Alpha")}`,
         "rounds: []",
       ].join("\n"),
     );

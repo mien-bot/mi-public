@@ -33,13 +33,13 @@ export default async function LeadDropboxPage({ params }: { params: Promise<{ sl
       {!lead.dropbox_path && (
         <p className="text-sm text-muted-foreground">
           No Dropbox folder linked. Set it in the <Link href={`/leads/${slug}`} className="text-link underline hover:no-underline">Edit lead</Link> form
-          above (e.g. <code>1.01 LEADS/{dateStampPrefix(lead.date_received)}{lead.name}</code>, relative
-          to your machine&apos;s <code>DROPBOX_ROOT</code> in <code>.env.local</code>) to browse its
-          real files here.
+          (e.g. <code>1.01 LEADS/{dateStampPrefix(lead.date_received)}{lead.name}</code>, relative
+          to the Dropbox root chosen in Settings). Save the exact path, then return here to
+          review and create the architectural folders.
         </p>
       )}
       {lead.dropbox_path && <DropboxHealthPanel kind="leads" slug={slug} />}
-      {lead.dropbox_path && <details><summary className="cursor-pointer text-sm text-muted-foreground">Folder setup</summary><CreateLeadDropboxFolderButton slug={slug} dropboxPath={lead.dropbox_path} /></details>}
+      {lead.dropbox_path && <section className="rounded-lg border border-border p-4"><h2 className="mb-3 font-medium">Folder setup</h2><CreateLeadDropboxFolderButton slug={slug} dropboxPath={lead.dropbox_path} /></section>}
     </div>
   );
 }

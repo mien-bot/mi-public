@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Installed AutoCAD 2027 API 26.0.0.0 references System.Runtime 10.0. Other releases need a separate build. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <PlatformTarget>x64</PlatformTarget>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+    <AutoCADPath Condition="'$(AutoCADPath)' == ''">C:\Program Files\Autodesk\AutoCAD 2027</AutoCADPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- AutoCAD's Application and Windows Forms' Application must not collide. -->
+    <Using Remove="System.Windows.Forms" />
+    <Using Remove="System.Drawing" />
+    <Using Include="System.IO" />
+    <Reference Include="accoremgd"><HintPath>$(AutoCADPath)\accoremgd.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
+    <Reference Include="acdbmgd"><HintPath>$(AutoCADPath)\acdbmgd.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
+    <Reference Include="acmgd"><HintPath>$(AutoCADPath)\acmgd.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
+  </ItemGroup>
+</Project>

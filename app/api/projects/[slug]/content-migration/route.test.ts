@@ -44,10 +44,10 @@ beforeEach(() => {
   dropboxRoot = path.join(root, "Dropbox");
   projectsDir = path.join(root, "local-projects");
   fs.mkdirSync(path.join(projectsDir, "demo"), { recursive: true });
-  fs.writeFileSync(path.join(projectsDir, "demo", "project.yaml"), "name: Demo\ndropbox_path: \"1.00 PROJECTS/Demo\"\n", "utf8");
+  fs.writeFileSync(path.join(projectsDir, "demo", "project.yaml"), "name: Demo\ndropbox_path: \"Projects/Demo\"\n", "utf8");
   fs.writeFileSync(path.join(projectsDir, "demo", "details.yaml"), "name: Demo\n", "utf8");
-  fs.mkdirSync(path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "project"), { recursive: true });
-  mocks.project.meta = { dropbox_path: "1.00 PROJECTS/Demo", content_location: "local" };
+  fs.mkdirSync(path.join(dropboxRoot, "Projects", "Demo", "Mi", "project"), { recursive: true });
+  mocks.project.meta = { dropbox_path: "Projects/Demo", content_location: "local" };
 });
 
 describe("content-migration route", () => {
@@ -58,7 +58,7 @@ describe("content-migration route", () => {
     expect(data.preview.entries).toEqual([
       expect.objectContaining({ relativePath: "details.yaml", status: "will-copy" }),
     ]);
-    expect(fs.existsSync(path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "project", "details.yaml"))).toBe(false);
+    expect(fs.existsSync(path.join(dropboxRoot, "Projects", "Demo", "Mi", "project", "details.yaml"))).toBe(false);
   });
 
   it("refuses to preview or apply when the project has no dropbox_path", async () => {
@@ -83,7 +83,7 @@ describe("content-migration route", () => {
     expect(data.migrationComplete).toBe(true);
     expect(data.results).toEqual([{ relativePath: "details.yaml", status: "copied" }]);
 
-    const destFile = path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "project", "details.yaml");
+    const destFile = path.join(dropboxRoot, "Projects", "Demo", "Mi", "project", "details.yaml");
     expect(fs.readFileSync(destFile, "utf8")).toBe("name: Demo\n");
     const projectYaml = fs.readFileSync(path.join(projectsDir, "demo", "project.yaml"), "utf8");
     expect(projectYaml).toContain("content_location: dropbox");
@@ -91,7 +91,7 @@ describe("content-migration route", () => {
   });
 
   it("does not flip content_location when a needs-review file is left unresolved", async () => {
-    const destFile = path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "project", "details.yaml");
+    const destFile = path.join(dropboxRoot, "Projects", "Demo", "Mi", "project", "details.yaml");
     fs.writeFileSync(destFile, "name: Conflicting\n", "utf8");
     const response = await PATCH(new Request("http://localhost/api/projects/demo/content-migration", {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ confirmed: true }),

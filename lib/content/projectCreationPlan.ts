@@ -57,7 +57,7 @@ export type NotionProjectScope = (typeof NOTION_PROJECT_SCOPES)[number];
 export const PROJECT_WORKFLOW_PROFILES = {
   architecture: {
     label: "Architecture / full design",
-    // Originally matched the firm's actual "Project Template" folder under 1.00 PROJECTS/
+    // Originally matched the firm's actual "Project Template" folder under Projects/
     // verbatim (confirmed 2026-07-26). Extended 2026-07-27, confirmed by the user, with
     // 00_Reference, 08_3DModels, and 09_SitePhotos after a Dropbox organization review of
     // an existing project surfaced these as conventions worth having from day one (see
@@ -358,7 +358,7 @@ export function buildProjectCreationPlan(input: ProjectCreationInput): ProjectCr
   const dropboxMode = input.dropboxMode ?? "create";
   const relativePath = dropboxMode === "link-existing"
     ? input.dropboxPath ?? ""
-    : `1.00 PROJECTS/${input.dropboxFolder}`;
+    : `Projects/${input.dropboxFolder}`;
   return {
     project: {
       name: input.name,

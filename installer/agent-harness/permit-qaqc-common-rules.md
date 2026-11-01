@@ -81,7 +81,9 @@ person's name.
 
 ## Updating Mi's records from here
 
-This workspace has no durable memory file of its own yet. `AGENTS.md`, `CLAUDE.md`,
+This workspace has no durable memory file of its own here. Confirmed findings land in Mi's
+QA/QC knowledge file for the engagement (or a folder the reviewer chooses), so propose them
+through the outbox rather than writing them yourself. `AGENTS.md`, `CLAUDE.md`,
 `README.md`, and `ENGAGEMENT.md` are Mi-generated and self-identify with a marker -- never
 hand-edit them; use Mi's Repair/Refresh Agent Workspace action instead. Engagement status,
 rounds, and other structured records live in Mi's own Permit QAQC pages -- tell the human to

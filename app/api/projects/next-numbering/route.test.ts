@@ -36,7 +36,7 @@ describe("GET /api/projects/next-numbering", () => {
     expect(data.dropboxFolderPrefix).toBeNull();
   });
 
-  it("returns a null Dropbox suggestion when 1.00 PROJECTS doesn't exist yet", async () => {
+  it("returns a null Dropbox suggestion when Projects doesn't exist yet", async () => {
     dropboxRoot = temporaryRoot();
     const response = await GET();
     const data = await response.json();
@@ -45,7 +45,7 @@ describe("GET /api/projects/next-numbering", () => {
 
   it("suggests the next available folder number from real Dropbox folders", async () => {
     dropboxRoot = temporaryRoot();
-    const projectsRoot = path.join(dropboxRoot, "1.00 PROJECTS");
+    const projectsRoot = path.join(dropboxRoot, "Projects");
     fs.mkdirSync(path.join(projectsRoot, "07_SampleStudio"), { recursive: true });
     fs.mkdirSync(path.join(projectsRoot, "11_1002 S Example Blvd Ave"), { recursive: true });
     fs.mkdirSync(path.join(projectsRoot, "Project Template"), { recursive: true });
@@ -57,7 +57,7 @@ describe("GET /api/projects/next-numbering", () => {
 
   it("ignores year folders sitting beside the numbered projects", async () => {
     dropboxRoot = temporaryRoot();
-    const projectsRoot = path.join(dropboxRoot, "1.00 PROJECTS");
+    const projectsRoot = path.join(dropboxRoot, "Projects");
     fs.mkdirSync(path.join(projectsRoot, "20_HeyTea-Schaumburg"), { recursive: true });
     fs.mkdirSync(path.join(projectsRoot, "21_ABC Clinic"), { recursive: true });
     fs.mkdirSync(path.join(projectsRoot, "2024"), { recursive: true });
@@ -70,7 +70,7 @@ describe("GET /api/projects/next-numbering", () => {
 
   it("keeps counting past the two-digit folders it pads to", async () => {
     dropboxRoot = temporaryRoot();
-    const projectsRoot = path.join(dropboxRoot, "1.00 PROJECTS");
+    const projectsRoot = path.join(dropboxRoot, "Projects");
     fs.mkdirSync(path.join(projectsRoot, "99_Ninety Nine"), { recursive: true });
     fs.mkdirSync(path.join(projectsRoot, "100_One Hundred"), { recursive: true });
 

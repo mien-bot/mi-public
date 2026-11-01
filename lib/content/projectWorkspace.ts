@@ -162,7 +162,10 @@ export interface ProjectMemory {
  * hand-authored file that uses other structure still renders, as preamble.
  */
 export function getProjectMemory(slug: string): ProjectMemory | null {
-  const filePath = memoryNotesPath(slug);
+  return readMemoryFile(memoryNotesPath(slug));
+}
+
+export function readMemoryFile(filePath: string): ProjectMemory | null {
   if (!fs.existsSync(filePath)) return null;
   const parsed = matter(fs.readFileSync(filePath, "utf8"));
   const lastUpdated = typeof parsed.data?.last_updated === "string" ? parsed.data.last_updated : null;

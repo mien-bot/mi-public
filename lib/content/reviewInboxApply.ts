@@ -1,17 +1,22 @@
+import path from "node:path";
 import { meetingNoteSchema, type MeetingNote } from "@/lib/schema";
 import { ContentConflictError, hashContent } from "./atomicContentWrite";
+import { mirrorProjectKnowledge } from "./dropboxMirror";
 import { getLead, getLeadWithHash } from "./leads";
 import { updateLead } from "./leadMutations";
 import { leadReviewCards } from "./outboxProposals";
-import { getPermitQaqcEngagement, getPermitQaqcEngagementWithHash } from "./permitQaqc";
+import { getPermitQaqcEngagement, getPermitQaqcEngagementWithHash, permitQaqcMemoryPath } from "./permitQaqc";
 import { updatePermitQaqcEngagement } from "./permitQaqcMutations";
 import {
+  appendMemoryNoteFile,
   appendProjectMemoryNote,
   getMeetingNotes,
   getProjectMemory,
   writeMeetingNote,
 } from "./projectWorkspace";
 import { getProjectSlugs } from "./projects";
+import { REVIEW_FOLDER_FILE, resolveReviewFolder, workspaceDropboxPath } from "./reviewFolderTarget";
+import { reviewDestinationName, reviewExcerpt } from "./reviewPreviewSummary";
 import { DEFAULT_TIMEZONE, isValidIanaTimezone } from "./timezone";
 import {
   effectiveContent,
@@ -53,6 +58,10 @@ export interface ReviewDestinationOption {
   current: string;
   /** Exactly what would be added (append) or written (replace). */
   proposed: string;
+  /** A batch-only destination that needs a reviewer's folder choice before it can be saved. */
+  requiresFolder?: boolean;
+  /** The confirmed workspace folder, relative to the Dropbox root, that bounds that choice. */
+  folderRoot?: string;
 }
 
 export function visibilityAllowsDestination(
@@ -214,7 +223,7 @@ function buildMeetingRecord({ card, content, details, rawNotes }: {
     // The record caps a title at 200 characters where an entry allows 300; the full text is
     // still in the note body this record carries as raw notes.
     title: content.title.slice(0, 200),
-    meeting_type: MEETING_TYPE_NOT_STATED,
+    meeting_type: content.meeting?.meeting_type || MEETING_TYPE_NOT_STATED,
     visibility: content.visibility,
     meeting_status: "completed",
     date: details.when.date,
@@ -385,6 +394,7 @@ export function describeDestinations(
   kind: WorkspaceKind,
   slug: string,
   card: ReviewCard,
+  options_: { folder?: string } = {},
 ): ReviewDestinationOption[] {
   const content = effectiveContent(card);
   if (!content) return [];
@@ -412,10 +422,9 @@ export function describeDestinations(
     }));
   }
 
-  // A permit QAQC engagement has no phases, no memory folder and no meetings -- qaqc.yaml is
-  // the record, so its Notes field is where a confirmed finding lands. Without this branch
-  // every permit-qaqc card fell through to the "no destination" placeholder below and could
-  // only be dismissed, which is not a review outcome.
+  // A permit QAQC engagement has no phases and no meetings. Its uncapped knowledge file is the
+  // default in the review UI because a long review fills the qaqc.yaml Notes field: without
+  // it, those findings could only be deleted, which is not a review outcome.
   if (kind === "permit-qaqc") {
     options.push(notesDestination({
       destinationKind: "qaqc-notes",
@@ -427,6 +436,17 @@ export function describeDestinations(
       read: () => getPermitQaqcEngagement(slug).engagement.notes ?? "",
       addition,
     }));
+    options.push({
+      ref: { kind: "qaqc-memory", record: `permit-qaqc/${slug}/memory/notes.md`, field: section.heading },
+      label: "Save as QA/QC knowledge",
+      record: `permit-qaqc/${slug}/memory/notes.md → new section`,
+      audience: "internal",
+      mode: "append",
+      available: true,
+      unavailableReason: "",
+      current: "",
+      proposed: addition,
+    });
   }
 
   const projectSlug = kind === "project"
@@ -465,6 +485,34 @@ export function describeDestinations(
   if (kind === "lead") {
     const recordOption = leadRecordFieldOption(slug, card, content);
     if (recordOption) options.push(recordOption);
+  }
+
+  // Offered only beside a human-confirmed folder, and never outside it.
+  const folderRoot = workspaceDropboxPath(kind, slug);
+  if (folderRoot) {
+    let target: { relative: string } | null = null;
+    let reason = "";
+    if (options_.folder !== undefined) {
+      try {
+        target = resolveReviewFolder(folderRoot, options_.folder);
+      } catch (cause) {
+        reason = cause instanceof Error ? cause.message : "That folder cannot be used.";
+      }
+    }
+    const destinationFile = target ? `${path.posix.join(target.relative, REVIEW_FOLDER_FILE)}` : REVIEW_FOLDER_FILE;
+    options.push({
+      ref: { kind: "workspace-folder", record: `${folderRoot}/${destinationFile}`, field: section.heading },
+      label: "Choose folder…",
+      record: `${folderRoot}/${destinationFile} → new section`,
+      audience: "internal",
+      mode: "append",
+      available: !reason,
+      unavailableReason: reason,
+      current: "",
+      proposed: addition,
+      requiresFolder: true,
+      folderRoot,
+    });
   }
 
   // Unreachable for the three workspace kinds that exist today, and kept precisely so a
@@ -515,13 +563,17 @@ export function applyReviewCardToDestination(input: {
   card: ReviewCard;
   destinationKind: ReviewDestinationKind;
   reviewedBy: string;
+  folder?: string;
   now?: () => Date;
 }): ReviewApplyOutcome {
-  const { kind, slug, card, destinationKind, reviewedBy } = input;
+  const { kind, slug, card, destinationKind, reviewedBy, folder } = input;
   const content = effectiveContent(card);
   if (!content) throw new ReviewApplyError("This card has no content to apply.");
+  if (destinationKind === "workspace-folder" && folder === undefined) {
+    throw new ReviewApplyError("Choose a folder before saving.");
+  }
 
-  const option = describeDestinations(kind, slug, card)
+  const option = describeDestinations(kind, slug, card, { folder })
     .find((candidate) => candidate.ref.kind === destinationKind);
   if (!option) throw new ReviewApplyError("That destination is not available for this card.");
   if (!option.available) throw new ReviewApplyError(option.unavailableReason || "That destination is not available.");
@@ -569,6 +621,28 @@ export function applyReviewCardToDestination(input: {
     };
   }
 
+  if (destinationKind === "qaqc-memory") {
+    if (kind !== "permit-qaqc") {
+      throw new ReviewApplyError("QA/QC knowledge only exists on a permit QAQC engagement.");
+    }
+    appendMemoryNoteFile(permitQaqcMemoryPath(slug), { title: section.heading, entry: section.body });
+    return {
+      result: `Appended “${section.heading}” to QA/QC knowledge.`,
+      record: `permit-qaqc/${slug}/memory/notes.md`,
+    };
+  }
+
+  if (destinationKind === "workspace-folder") {
+    const folderRoot = workspaceDropboxPath(kind, slug);
+    if (!folderRoot) throw new ReviewApplyError("This workspace has no confirmed Dropbox folder.");
+    const target = resolveReviewFolder(folderRoot, folder ?? "");
+    appendMemoryNoteFile(target.file, { title: section.heading, entry: section.body });
+    return {
+      result: `Appended “${section.heading}” to ${REVIEW_FOLDER_FILE} in ${target.relative}.`,
+      record: option.ref.record,
+    };
+  }
+
   if (destinationKind === "project-meeting") {
     const projectSlug = kind === "project" ? slug : safeConvertedProjectSlug(slug);
     if (!projectSlug) throw new ReviewApplyError("This lead is not linked to a project yet.");
@@ -587,6 +661,9 @@ export function applyReviewCardToDestination(input: {
       }
       throw cause;
     }
+    // Same refresh the Meetings page does. The note is saved either way, so a mirror problem
+    // must not read as a failed confirmation.
+    try { mirrorProjectKnowledge(projectSlug); } catch { /* The next mirror refresh catches up. */ }
     return {
       result: `Filed “${meeting.title}” as a meeting note dated ${meeting.date}.`,
       record: `projects/${projectSlug}/meetings/${meeting.date}-${meeting.id}.md`,
@@ -636,8 +713,22 @@ export interface BulkApplyPlan {
   allowed: boolean;
   blockers: string[];
   /** One line per card: what would change where. */
-  effects: { cardId: string; title: string; record: string; summary: string; proposed: string }[];
+  effects: {
+    cardId: string;
+    title: string;
+    record: string;
+    summary: string;
+    proposed: string;
+    /** Display only, one sentence. Never part of a fingerprint or the saved record. */
+    excerpt: string;
+    destination: string;
+  }[];
 }
+
+const NOTES_FIELD_LIMITS: Partial<Record<ReviewDestinationKind, { limit: number; label: string }>> = {
+  "lead-notes": { limit: LEAD_NOTES_LIMIT, label: "Lead notes" },
+  "qaqc-notes": { limit: QAQC_NOTES_LIMIT, label: "Engagement notes" },
+};
 
 /**
  * Whether a set of cards may be confirmed in one action, and what the combined effect is.
@@ -652,10 +743,16 @@ export function planBulkApply(input: {
   slug: string;
   cards: ReviewCard[];
   destinationKind: ReviewDestinationKind;
+  folder?: string;
 }): BulkApplyPlan {
-  const { kind, slug, cards, destinationKind } = input;
+  const { kind, slug, cards, destinationKind, folder } = input;
   const blockers: string[] = [];
   const effects: BulkApplyPlan["effects"] = [];
+  if (destinationKind === "workspace-folder" && folder === undefined) {
+    blockers.push("Choose a folder before saving.");
+  }
+  const notesField = NOTES_FIELD_LIMITS[destinationKind];
+  let notesLength: number | null = null;
 
   if (cards.length === 0) blockers.push("No cards were selected.");
   const workspaces = new Set(cards.map((card) => `${card.workspace.type}/${card.workspace.slug}`));
@@ -670,7 +767,7 @@ export function planBulkApply(input: {
   const fieldClaims = new Map<string, string>();
   for (const card of cards) {
     const content = effectiveContent(card);
-    const option = describeDestinations(kind, slug, card)
+    const option = describeDestinations(kind, slug, card, { folder })
       .find((candidate) => candidate.ref.kind === destinationKind);
     if (!option) {
       blockers.push(`“${content?.title ?? card.id}” cannot be sent to that destination.`);
@@ -694,6 +791,15 @@ export function planBulkApply(input: {
         fieldClaims.set(key, target.proposed);
       }
     }
+    // Each card fits alone, but the batch writes them in sequence: checking the running total
+    // refuses at preview instead of failing partway through a save.
+    if (notesField) {
+      notesLength = (notesLength ?? option.current.trimEnd().length) + option.proposed.length + 2;
+      if (notesLength > notesField.limit) {
+        const message = `Together these items would exceed the ${notesField.limit.toLocaleString("en-US")}-character limit on ${notesField.label}. Save fewer, or choose another destination.`;
+        if (!blockers.includes(message)) blockers.push(message);
+      }
+    }
     effects.push({
       cardId: card.id,
       title: content?.title ?? card.id,
@@ -702,10 +808,12 @@ export function planBulkApply(input: {
       summary: option.mode === "append"
         ? `Appends a dated section (${option.proposed.length} characters).`
         : option.proposed,
+      excerpt: reviewExcerpt(content, card.entry_kind === "meeting" && content ? describeMeetingContent(content, card.source.created_at).summary : ""),
+      destination: reviewDestinationName(destinationKind),
     });
   }
 
-  const fingerprint = hashContent(JSON.stringify({ kind, slug, destinationKind,
+  const fingerprint = hashContent(JSON.stringify({ kind, slug, destinationKind, folder: folder ?? null,
     cards: cards.map(card => ({ id: card.id, status: card.status, content: effectiveContent(card), source: card.source })),
   }));
   return { fingerprint, allowed: blockers.length === 0 && effects.length === cards.length, blockers, effects };

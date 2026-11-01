@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 import {
   communicationIndexSchema,
@@ -27,7 +28,9 @@ export function leadDir(slug: string, leadsDir: string = resolveFirmDataDir("lea
 
 /** leads/<slug>/lead.yaml — one folder per lead (site visits, contracts, photos, communications live alongside it). */
 export function getLeadSlugs(leadsDir: string = resolveFirmDataDir("leads").dir): string[] {
-  return listDirs(leadsDir);
+  return listDirs(leadsDir).filter((slug) =>
+    !slug.startsWith(".") && fs.existsSync(path.join(leadsDir, slug, "lead.yaml")),
+  );
 }
 
 export function getLead(slug: string, leadsDir?: string): LeadRecord {

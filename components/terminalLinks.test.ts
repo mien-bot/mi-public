@@ -18,9 +18,9 @@ describe("terminal web links", () => {
 
 describe("terminal file links", () => {
   it("recognizes absolute paths with spaces, file URLs, and Markdown targets", () => {
-    const text = 'See [report](E:\\STUDIO\\1.00 PROJECTS\\review notes.pdf), /tmp/review.md and file:///C:/My%20Files/report.pdf';
+    const text = 'See [report](E:\\STUDIO\\Projects\\review notes.pdf), /tmp/review.md and file:///C:/My%20Files/report.pdf';
     expect(terminalFileMatches(text).map(link => link.text)).toEqual([
-      'E:\\STUDIO\\1.00 PROJECTS\\review notes.pdf', '/tmp/review.md', 'file:///C:/My%20Files/report.pdf',
+      'E:\\STUDIO\\Projects\\review notes.pdf', '/tmp/review.md', 'file:///C:/My%20Files/report.pdf',
     ]);
     expect(terminalFileMatches('https://example.com/report.pdf relative/report.pdf')).toEqual([]);
     expect(terminalFileMatches('C:\\report.pdf.exe')[0].text).toBe('C:\\report.pdf.exe');

@@ -108,7 +108,7 @@ function inspectSharedData({
 /**
  * Bounded scan for folders that already look like a Mi data root, so a second computer can be
  * offered its firm's folder instead of hunting for it in a directory picker. The convention is
- * a single top-level folder (`<Dropbox root>/7.00 Mi Data`), but the name is free-form and
+ * a single top-level folder (`<Dropbox root>/Mi Data`), but the name is free-form and
  * differs per firm, so this matches on *contents* rather than on any name.
  *
  * Proposal only. The caller must have a human pick one -- same rule as dropbox_path and

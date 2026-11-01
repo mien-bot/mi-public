@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- Revit 26.5 installed here references System.Runtime 10.0. Earlier APIs need a separate build. -->
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <Version>0.1.0</Version>
+    <RevitPath Condition="'$(RevitPath)' == ''">C:\Program Files\Autodesk\Revit 2026</RevitPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="RevitAPI"><HintPath>$(RevitPath)\RevitAPI.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
+    <Reference Include="RevitAPIUI"><HintPath>$(RevitPath)\RevitAPIUI.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
+  </ItemGroup>
+</Project>

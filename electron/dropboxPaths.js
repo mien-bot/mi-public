@@ -8,6 +8,10 @@ function normalizeDropboxSelection(root, selectedPath) {
   if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     throw new Error("Selected folder must be inside DROPBOX_ROOT.");
   }
+  // Same list as lib/content/dropboxPaths.ts.
+  if (relative.toLowerCase() === "projects") {
+    throw new Error("That folder holds all the projects. Choose this project's own folder inside it.");
+  }
   return relative.split(path.sep).join("/");
 }
 

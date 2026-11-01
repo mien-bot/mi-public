@@ -2,7 +2,9 @@
 
 import { useMemo, useState } from "react";
 import type { Milestone } from "@/lib/schema";
+import { compareTier, milestoneTier, type ScheduleTier, type TimelineRow } from "@/lib/scheduleInsights";
 import { hasMiDragKind, readMiDragData, setMiDragData } from "./miDragData";
+import { TierLegend, UpcomingCriticalStrip, YearTimelineView } from "./YearTimelineView";
 import {
   moveScheduleAnchor,
   scheduleDateKey,
@@ -11,14 +13,23 @@ import {
   type ScheduleCalendarView,
 } from "./scheduleCalendarModel";
 
+const CHIP_TIER: Record<ScheduleTier, string> = {
+  critical: "border-l-4 border-accent bg-accent/25 font-semibold",
+  high: "border-l-2 border-accent bg-muted font-medium",
+  normal: "bg-muted",
+  low: "bg-muted/50 text-muted-foreground",
+};
+
 export function ProjectMilestoneCalendar({
   milestones,
   onMove,
   onSelect,
+  row,
 }: {
   milestones: Milestone[];
   onMove: (milestone: Milestone, newDate: string) => void;
   onSelect: (milestone: Milestone) => void;
+  row: TimelineRow;
 }) {
   const today = new Date();
   const [anchor, setAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), today.getDate()));
@@ -32,6 +43,7 @@ export function ProjectMilestoneCalendar({
       const key = milestone.planned_date.slice(0, 10);
       result.set(key, [...(result.get(key) ?? []), milestone]);
     }
+    for (const entries of result.values()) entries.sort((a, b) => compareTier(milestoneTier(a), milestoneTier(b)));
     return result;
   }, [milestones]);
   const todayKey = scheduleDateKey(today);
@@ -56,7 +68,7 @@ export function ProjectMilestoneCalendar({
           <button type="button" onClick={() => setAnchor(new Date(today.getFullYear(), today.getMonth(), today.getDate()))} className="rounded-md border border-border px-2.5 py-1.5 text-xs">Today</button>
           <button type="button" onClick={() => setAnchor((current) => moveScheduleAnchor(current, view, 1))} className="rounded-md border border-border px-2.5 py-1.5 text-xs">Next</button>
           <div className="inline-flex rounded-md border border-border p-1" aria-label="Milestone calendar view">
-            {(["month", "week", "work-week", "day"] as const).map((option) => (
+            {(["year", "month", "week", "work-week", "day"] as const).map((option) => (
               <button
                 key={option}
                 type="button"
@@ -70,8 +82,10 @@ export function ProjectMilestoneCalendar({
           </div>
         </div>
       </div>
+      <UpcomingCriticalStrip rows={[row]} today={todayKey} showProject={false} />
       <h3 className="mt-3 text-center text-sm font-medium">{scheduleViewHeading(anchor, view)}</h3>
-      <div className="mt-3 grid border-l border-t border-border" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      <TierLegend />
+      {view === "year" ? <YearTimelineView rows={[row]} year={anchor.getFullYear()} today={todayKey} /> : <div className="mt-3 grid border-l border-t border-border" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
         {(view === "month" ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] : days.map((date) => new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(date))).map((label, index) => (
           <div key={`${label}-${index}`} className="border-b border-r border-border p-2 text-center text-[11px] font-medium text-muted-foreground">{label}</div>
         ))}
@@ -117,7 +131,7 @@ export function ProjectMilestoneCalendar({
                     }}
                     onClick={() => onSelect(milestone)}
                     title={`${milestone.name} · Drag to reschedule or click to open the timeline editor`}
-                    className={`block w-full cursor-grab rounded bg-muted px-1.5 py-1 text-left text-[10px] hover:bg-accent/20 active:cursor-grabbing ${milestone.actual_date ? "line-through opacity-60" : ""}`}
+                    className={`block w-full cursor-grab rounded px-1.5 py-1 text-left text-[10px] hover:bg-accent/20 active:cursor-grabbing ${CHIP_TIER[milestoneTier(milestone)]} ${milestone.actual_date ? "line-through opacity-60" : ""}`}
                   >
                     {milestone.name}
                   </button>
@@ -126,7 +140,7 @@ export function ProjectMilestoneCalendar({
             </div>
           );
         })}
-      </div>
+      </div>}
     </section>
   );
 }

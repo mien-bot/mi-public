@@ -63,11 +63,11 @@ describe("Notion workspace people", () => {
   it("also picks people up from the Studio Projects Team property", async () => {
     route({
       "/users?": NO_PEOPLE,
-      "/databases/projects-db/query": { results: [{ properties: { Team: { type: "people", people: [{ id: "tommy" }] } } }], has_more: false, next_cursor: null },
-      "/users/tommy": { id: "tommy", type: "person", name: "Tommy Nam" },
+      "/databases/projects-db/query": { results: [{ properties: { Team: { type: "people", people: [{ id: "sam" }] } } }], has_more: false, next_cursor: null },
+      "/users/sam": { id: "sam", type: "person", name: "Sam Lee" },
     });
 
-    await expect(listNotionWorkspacePeople()).resolves.toEqual([{ id: "tommy", name: "Tommy Nam" }]);
+    await expect(listNotionWorkspacePeople()).resolves.toEqual([{ id: "sam", name: "Sam Lee" }]);
   });
 
   it("drops an account that no longer resolves instead of offering a blank row", async () => {

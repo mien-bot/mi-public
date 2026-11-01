@@ -159,7 +159,7 @@ export function ScheduleAdjustAgent({ onApplied }: { onApplied?: () => boolean |
         <input type="file" accept="application/json,.json" className="sr-only" disabled={busy} onChange={(event) => { void importProposals(event.target.files?.[0]); event.target.value = ""; }} />
       </label>
       <p className="mt-1 text-xs text-muted-foreground">
-        Tell Mi what to change or add — e.g. &quot;move the Riya meeting to next Friday&quot;, &quot;mark the sitework milestone done&quot;, or &quot;add a client meeting for Example next Tuesday&quot;. Mi drafts the change; nothing is saved until you confirm.
+        Tell Mi what to change or add — e.g. &quot;move the Jordan meeting to next Friday&quot;, &quot;mark the sitework milestone done&quot;, or &quot;add a client meeting for Example next Tuesday&quot;. Mi drafts the change; nothing is saved until you confirm.
       </p>
       <form
         onSubmit={(event) => {
@@ -188,7 +188,7 @@ export function ScheduleAdjustAgent({ onApplied }: { onApplied?: () => boolean |
             }
           }}
           rows={2}
-          placeholder="Move the Riya meeting to next Friday…"
+          placeholder="Move the Jordan meeting to next Friday…"
           disabled={busy}
           className="min-w-0 flex-1 resize-none rounded-md border border-border bg-card px-3 py-2 text-sm outline-none transition-colors focus:border-accent disabled:opacity-50"
         />

@@ -42,13 +42,13 @@ describe("scaffoldProject", () => {
       address: "123 Main St",
       status: "in-progress",
       notionPageId: "abc-123",
-      dropboxPath: "1.00 PROJECTS/12_Demo Project",
+      dropboxPath: "Projects/12_Demo Project",
     });
     const projectYaml = fs.readFileSync(path.join(projectsDir, "demo", "project.yaml"), "utf8");
     expect(projectYaml).toContain('client: "Acme"');
     expect(projectYaml).toContain('address: "123 Main St"');
     expect(projectYaml).toContain("status: in-progress");
     expect(projectYaml).toContain('notion_page_id: "abc-123"');
-    expect(projectYaml).toContain('dropbox_path: "1.00 PROJECTS/12_Demo Project"');
+    expect(projectYaml).toContain('dropbox_path: "Projects/12_Demo Project"');
   });
 });

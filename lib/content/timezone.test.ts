@@ -15,7 +15,7 @@ describe("project timezone handling", () => {
       .toBe("2026-07-17T15:03:00.000-05:00");
   });
 
-  it("displays the existing Riya Meeting timestamp in Chicago", () => {
+  it("displays the existing Jordan Meeting timestamp in Chicago", () => {
     expect(formatNotionTimestamp("2026-07-17T20:03:00.000Z", "America/Chicago"))
       .toContain("3:03 PM");
   });

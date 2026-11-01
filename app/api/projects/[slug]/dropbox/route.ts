@@ -3,12 +3,14 @@ import path from "node:path";
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { getProjectSlugs, normalizeDropboxRelativePath, resolveDropboxRelativePath } from "@/lib/content";
+import { assertProjectFolder } from "@/lib/content/dropboxPaths";
 import { DROPBOX_ROOT, PROJECTS_DIR } from "@/lib/content/paths";
 import { patchScalarField } from "@/src/adapters/repo/patchYamlField";
 
 function preview(relativePath: unknown) {
   if (typeof relativePath !== "string" || !DROPBOX_ROOT) throw new Error("DROPBOX_ROOT and a relative path are required.");
   const normalized = normalizeDropboxRelativePath(DROPBOX_ROOT, relativePath);
+  assertProjectFolder(normalized);
   const absolute = resolveDropboxRelativePath(DROPBOX_ROOT, normalized);
   if (!fs.existsSync(absolute) || !fs.statSync(absolute).isDirectory()) {
     throw new Error("The selected Dropbox folder does not exist on this machine.");

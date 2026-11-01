@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { LEAD_DROPBOX_SUBFOLDERS } from "@/lib/leadDropboxStructure";
 
 export function CreateLeadDropboxFolderButton({ slug, dropboxPath }: { slug: string; dropboxPath: string }) {
   const router = useRouter();
@@ -30,6 +31,7 @@ export function CreateLeadDropboxFolderButton({ slug, dropboxPath }: { slug: str
     }
     setBusy(false);
     setConfirming(false);
+    setMessage("Dropbox folder setup is complete.");
     router.refresh();
   }
 
@@ -38,20 +40,20 @@ export function CreateLeadDropboxFolderButton({ slug, dropboxPath }: { slug: str
       <button
         type="button"
         disabled={busy}
-        onClick={() => setConfirming(true)}
+        onClick={() => { setMessage(""); setConfirming(true); }}
         className="rounded-md bg-foreground px-3 py-2 text-sm text-background disabled:opacity-50"
       >
         {busy ? "Creating…" : `Create "${dropboxPath}" in Dropbox`}
       </button>
-      {message && <p role="alert" className="text-sm text-red-300">{message}</p>}
+      {message && !confirming && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
       {confirming && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
           <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-lg border border-border bg-card p-5">
             <h2 className="font-medium">Confirm Dropbox folder creation</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Create <code>{dropboxPath}</code> with contracts, owner-supplied, site-photos,
-              correspondence, and Mi subfolders. Existing Dropbox content will not be overwritten.
+              Create missing folders under <code>{dropboxPath}</code>: {LEAD_DROPBOX_SUBFOLDERS.join(", ")}. Existing Dropbox content will not be overwritten.
             </p>
+            {message && <p role="alert" className="mt-3 text-sm text-status-danger-foreground">{message}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" disabled={busy} onClick={() => setConfirming(false)} className="rounded-md border border-border px-3 py-2 text-sm">Cancel</button>
               <button type="button" disabled={busy} onClick={() => void create()} className="rounded-md bg-foreground px-3 py-2 text-sm text-background disabled:opacity-50">

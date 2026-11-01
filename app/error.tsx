@@ -14,7 +14,7 @@ export default function ErrorPage({
       <EmptyState
         icon="tools"
         title="This workspace hit an unexpected problem"
-        description="Your project records have not been changed. Try loading the workspace again, or return to Mi and continue somewhere else."
+        description="This workspace could not be displayed. If you just saved or deleted something, that action may have completed. Reload and check its status before trying the action again."
         action={(
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => unstable_retry()} className="tactile-control rounded-md bg-accent px-4 py-2 text-sm text-accent-foreground">

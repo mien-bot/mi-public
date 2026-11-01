@@ -56,8 +56,7 @@ export function DeleteLeadButton({
       return;
     }
     close();
-    router.push("/leads");
-    router.refresh();
+    router.replace("/leads");
   }
 
   return (

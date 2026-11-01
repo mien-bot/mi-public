@@ -30,6 +30,8 @@ type TerminalPanelProps = {
   session?: string;
 };
 
+const MEETING_PROMPT = "File this session's meeting notes in Mi as a meeting inbox entry. Ask me for the meeting date if you don't know it.";
+
 export function TerminalPanel(props: TerminalPanelProps) {
   return <ResolvedTerminalWorkspace workspace={props.cwd}>{cwd => <ResolvedTerminalPanel {...props} cwd={cwd} />}</ResolvedTerminalWorkspace>;
 }
@@ -629,6 +631,18 @@ function TerminalView({
                 className="h-7 border-l border-accent/40 px-2 text-[10px] text-accent transition-colors hover:bg-accent/20 disabled:opacity-50"
               >
                 Use terminal output
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = terminalIdRef.current;
+                  // Typed, never submitted: in a plain shell this is text, not a command to run.
+                  if (id !== null) window.electronAPI?.terminal.write(id, MEETING_PROMPT);
+                }}
+                title="Types a request for the running agent to file its meeting notes. Press Enter to send it."
+                className="h-7 border-l border-accent/40 px-2 text-[10px] text-accent transition-colors hover:bg-accent/20"
+              >
+                Send to Meetings
               </button>
             </div>
           )}

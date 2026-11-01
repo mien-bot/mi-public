@@ -92,7 +92,7 @@ async function preview(body: Record<string, unknown> = {}) {
 
 beforeEach(() => {
   dropboxRoot = temporaryRoot();
-  fs.mkdirSync(path.join(dropboxRoot, "1.00 PROJECTS"), { recursive: true });
+  fs.mkdirSync(path.join(dropboxRoot, "Projects"), { recursive: true });
   projectsDir = path.join(temporaryRoot(), "projects");
   repoRoot = temporaryRoot();
   leadsDir = temporaryRoot();
@@ -127,7 +127,7 @@ describe("POST /api/leads/[slug]/convert", () => {
     const { status, data } = await preview();
     expect(status).toBe(200);
     expect(data.plan.project.project).toMatchObject({ name: "1002 S Example Blvd", slug: "1002-s-example-blvd" });
-    expect(data.plan.project.dropbox.relativePath).toBe("1.00 PROJECTS/1002 S Example Blvd");
+    expect(data.plan.project.dropbox.relativePath).toBe("Projects/1002 S Example Blvd");
     expect(data.plan.lead.name).toBe(original.name);
 
     const response = await post({
@@ -145,13 +145,13 @@ describe("POST /api/leads/[slug]/convert", () => {
     const { status, data } = await preview({ dropboxFolder: "12_Acme Clinic" });
 
     expect(status).toBe(200);
-    expect(data.plan.project.dropbox.relativePath).toBe("1.00 PROJECTS/12_Acme Clinic");
+    expect(data.plan.project.dropbox.relativePath).toBe("Projects/12_Acme Clinic");
     expect(data.plan.project.dropbox.folders).toContain("09_SitePhotos");
     expect(data.plan.seed.copies).toEqual([
       expect.objectContaining({ target: "09_SitePhotos/From-Lead/front.jpg", label: "Front elevation" }),
     ]);
     expect(data.handoffPreview).toContain("# Lead handoff — Acme Clinic");
-    expect(fs.existsSync(path.join(dropboxRoot, "1.00 PROJECTS", "12_Acme Clinic"))).toBe(false);
+    expect(fs.existsSync(path.join(dropboxRoot, "Projects", "12_Acme Clinic"))).toBe(false);
     expect(mocks.createStudioProject).not.toHaveBeenCalled();
     expect(mocks.scaffoldProject).not.toHaveBeenCalled();
     expect(mocks.updateLead).not.toHaveBeenCalled();
@@ -169,7 +169,7 @@ describe("POST /api/leads/[slug]/convert", () => {
     expect(response.status).toBe(200);
     const result = await response.json();
 
-    const target = path.join(dropboxRoot, "1.00 PROJECTS", "12_Acme Clinic");
+    const target = path.join(dropboxRoot, "Projects", "12_Acme Clinic");
     expect(fs.existsSync(path.join(target, "01_Admin"))).toBe(true);
     expect(fs.existsSync(path.join(target, "Mi"))).toBe(true);
     expect(fs.readFileSync(path.join(target, "README.md"), "utf8")).toContain("Project folder conventions");
@@ -181,7 +181,7 @@ describe("POST /api/leads/[slug]/convert", () => {
     expect(mocks.scaffoldProject).toHaveBeenCalledWith("acme-clinic", "Acme Clinic", expect.objectContaining({
       client: "Dana Reed",
       notionPageId: "notion-page-id",
-      dropboxPath: "1.00 PROJECTS/12_Acme Clinic",
+      dropboxPath: "Projects/12_Acme Clinic",
     }));
     expect(mocks.writeProjectDetails).toHaveBeenCalledWith("acme-clinic", expect.objectContaining({ fee: 42000 }));
     expect(mocks.updateLead).toHaveBeenCalledWith("acme-clinic", expect.objectContaining({
@@ -191,7 +191,7 @@ describe("POST /api/leads/[slug]/convert", () => {
     expect(mocks.mirrorProjectKnowledge).toHaveBeenCalledWith("acme-clinic");
     expect(mocks.recordAudit).toHaveBeenCalledWith(expect.objectContaining({ command: "lead convert confirmed" }));
     expect(result.seededFiles).toEqual(["Lead-Handoff.md", "09_SitePhotos/From-Lead/front.jpg"]);
-    expect(result.dropboxPath).toBe("1.00 PROJECTS/12_Acme Clinic");
+    expect(result.dropboxPath).toBe("Projects/12_Acme Clinic");
   });
 
   it("sends lead files to 00_From-Lead when their destination folder was removed", async () => {
@@ -208,7 +208,7 @@ describe("POST /api/leads/[slug]/convert", () => {
       clientRequestId: "77777777-7777-7777-7777-777777777777",
       previewPlan: data.plan,
     });
-    const target = path.join(dropboxRoot, "1.00 PROJECTS", "12_Acme Clinic");
+    const target = path.join(dropboxRoot, "Projects", "12_Acme Clinic");
     expect(fs.existsSync(path.join(target, "00_From-Lead", "site-photos", "front.jpg"))).toBe(true);
     expect(fs.existsSync(path.join(target, "09_SitePhotos"))).toBe(false);
   });
@@ -237,7 +237,7 @@ describe("POST /api/leads/[slug]/convert", () => {
       ...data.plan,
       project: {
         ...data.plan.project,
-        dropbox: { ...data.plan.project.dropbox, relativePath: "1.00 PROJECTS/Somewhere Else" },
+        dropbox: { ...data.plan.project.dropbox, relativePath: "Projects/Somewhere Else" },
       },
     };
     const response = await post({
@@ -276,7 +276,7 @@ describe("POST /api/leads/[slug]/convert", () => {
     const failed = await post(body);
     expect(failed.status).toBe(502);
     // The Dropbox side already happened, and the lead is deliberately left unconverted.
-    const target = path.join(dropboxRoot, "1.00 PROJECTS", "12_Acme Clinic");
+    const target = path.join(dropboxRoot, "Projects", "12_Acme Clinic");
     expect(fs.existsSync(path.join(target, "Lead-Handoff.md"))).toBe(true);
     expect(mocks.updateLead).not.toHaveBeenCalled();
 

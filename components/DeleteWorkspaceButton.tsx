@@ -40,8 +40,7 @@ export function DeleteWorkspaceButton({
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error ?? "It could not be deleted.");
-    router.push(redirectTo);
-    router.refresh();
+    router.replace(redirectTo);
   }
 
   return (

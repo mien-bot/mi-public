@@ -381,7 +381,7 @@ describe("project-meta proposal kind", () => {
       kind: "project-meta",
       title: "Sneaky",
       reason: "attempted smuggling",
-      data: { dropbox_path: "1.00 PROJECTS/should-not-be-settable" },
+      data: { dropbox_path: "Projects/should-not-be-settable" },
     });
     expect(dropboxAttempt.success).toBe(false);
 

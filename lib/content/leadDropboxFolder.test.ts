@@ -27,6 +27,9 @@ describe("lead Dropbox folder planning", () => {
     const target = path.join(root, "1.01 LEADS", "26_0811_Demo");
 
     expect(plan.folders).toEqual([...LEAD_DROPBOX_SUBFOLDERS]);
+    expect(plan.folders).toContain("01_Admin");
+    expect(plan.folders).toContain("03_Production");
+    expect(plan.folders).not.toContain("contracts");
     expect(fs.existsSync(target)).toBe(false);
     expect(() => applyLeadDropboxFolder(root, plan, false)).toThrow(/confirmation/i);
 
@@ -70,5 +73,27 @@ describe("lead Dropbox folder planning", () => {
     expect(() => previewLeadDropboxFolder(root, "../outside", "create")).toThrow(/unsafe|relative|escapes/i);
     expect(() => previewLeadDropboxFolder(root, "1.01 LEADS/Missing", "link-existing")).toThrow(/does not exist/i);
     expect(() => previewLeadDropboxFolder(root, "1.01 LEADS/Already Here", "create")).toThrow(/already exists/i);
+  });
+
+  it("preserves existing legacy folders and documents when completing setup", () => {
+    const root = temporaryRoot();
+    const target = path.join(root, "Lead");
+    fs.mkdirSync(path.join(target, "contracts"), { recursive: true });
+    fs.writeFileSync(path.join(target, "contracts", "signed.txt"), "keep");
+    const plan = previewLeadDropboxFolder(root, "Lead", "create", { allowExistingRoot: true });
+    applyLeadDropboxFolder(root, plan, true);
+    expect(fs.readFileSync(path.join(target, "contracts", "signed.txt"), "utf8")).toBe("keep");
+    expect(fs.statSync(path.join(target, "01_Admin")).isDirectory()).toBe(true);
+    expect(applyLeadDropboxFolder(root, plan, true).createdFolders).toEqual([]);
+  });
+
+  it("rejects a file blocking a required subfolder before writing any folders", () => {
+    const root = temporaryRoot();
+    const target = path.join(root, "Lead");
+    fs.mkdirSync(target);
+    fs.writeFileSync(path.join(target, "03_Production"), "keep");
+    expect(() => previewLeadDropboxFolder(root, "Lead", "create", { allowExistingRoot: true }))
+      .toThrow(/file blocks/);
+    expect(fs.readdirSync(target)).toEqual(["03_Production"]);
   });
 });

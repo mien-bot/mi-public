@@ -86,6 +86,32 @@ export interface PersonalCalendarOption {
   compatible: boolean;
 }
 
+export interface GoogleCalendarStatus {
+  connected: boolean;
+  hasClient: boolean;
+  calendarId: string | null;
+  calendarName: string | null;
+}
+
+export interface GoogleCalendarEvent {
+  id: string;
+  name: string;
+  date: string | null;
+  date_end: string | null;
+  url: string | null;
+}
+
+/** Read-only by design: nothing here can change a Google calendar. */
+export interface ElectronGoogleCalendarAPI {
+  status: () => Promise<GoogleCalendarStatus>;
+  setClient: (clientId: string, clientSecret: string) => Promise<GoogleCalendarStatus>;
+  connect: () => Promise<GoogleCalendarStatus>;
+  calendars: () => Promise<{ id: string; name: string }[]>;
+  select: (calendarId: string) => Promise<GoogleCalendarStatus>;
+  events: (from: string, to: string) => Promise<GoogleCalendarEvent[]>;
+  disconnect: () => Promise<GoogleCalendarStatus>;
+}
+
 export interface ElectronPersonalCalendarAPI {
   status: () => Promise<PersonalCalendarStatus>;
   setToken: (token: string) => Promise<{ hasPersonalNotionToken: boolean }>;
@@ -191,6 +217,10 @@ export interface PartnerSetupConfig {
   importedLegacyAt: string | null;
   hasNotionToken: boolean;
   hasPersonalNotionToken: boolean;
+  hasGoogleCalendar: boolean;
+  googleClientId: string | null;
+  googleCalendarId: string | null;
+  googleCalendarName: string | null;
   hasClaudeSubscriptionToken: boolean;
   hasClaudeApiKey: boolean;
   hasOpenAiApiKey: boolean;
@@ -405,6 +435,8 @@ export interface ElectronZoomAPI {
 
 export interface ElectronDropboxAPI {
   pickProjectFolder: () => Promise<{ relativePath?: string; canceled?: boolean; error?: string }>;
+  /** Bounded by a confirmed workspace folder; the returned path is relative to that folder. */
+  pickFolderWithin: (workspaceFolder: string) => Promise<{ relativePath?: string; canceled?: boolean; error?: string }>;
   pickSharedFolder: () => Promise<{ relativePath?: string; canceled?: boolean; error?: string }>;
   /** Pass an unsaved draft path to check it before committing the setting. */
   inspectSharedData: (relativePath?: string | null) => Promise<SharedDataInspection>;
@@ -506,8 +538,51 @@ export interface MiPaneState {
   terminals: { workspace: string; session: string }[];
 }
 
+export interface CadDocument {
+  id: string;
+  title: string;
+  path: string | null;
+  isReadOnly: boolean;
+  isWorkshared?: boolean;
+  isActive?: boolean;
+}
+export type CadApplication = "revit" | "autocad";
+export interface CadStatus {
+  application: CadApplication;
+  sessions: { session: string; pid: number; version?: string; documents: CadDocument[]; error?: string }[];
+  binding: { session: string; document: string; title: string } | null;
+  health: string;
+  payloadAvailable: boolean;
+  applicationInstalled: boolean;
+  applicationRunning: boolean;
+  /** False before pairing and after Mi restarts: edits are then reviewed in the application. */
+  reviewsInMi: boolean;
+  addin: "installed" | "optional-update" | "outdated" | "missing";
+  requiredVersion: string;
+  launcher: string;
+}
+export interface CadReview { id: string; workspace: string; application: CadApplication; title: string; summary: string; expiresAt: number }
+export interface CadLessons { accepted: { id: string; text: string }[]; pending: { id: string; text: string }[] }
+export interface ElectronCadAPI {
+  lessons: () => Promise<CadLessons>;
+  addLesson: (text: string) => Promise<CadLessons>;
+  reviewLesson: (id: string, accept: boolean) => Promise<CadLessons>;
+  removeLesson: (id: string) => Promise<CadLessons>;
+  status: (workspace: string, application: CadApplication) => Promise<CadStatus>;
+  bind: (workspace: string, application: CadApplication, session: string, document: string) => Promise<CadStatus>;
+  disconnect: (workspace: string, application: CadApplication) => Promise<{ revoked: boolean; message: string }>;
+  install: (application: CadApplication, action: "install" | "uninstall") => Promise<{ message: string }>;
+  startAgent: (workspace: string, engine: "claude") => Promise<{ session: string; existing?: boolean }>;
+  isAgentSession: (workspace: string, session: string) => Promise<boolean>;
+  reviews: () => Promise<CadReview[]>;
+  reviewShown: (id: string) => Promise<boolean>;
+  answerReview: (id: string, approved: boolean) => Promise<boolean>;
+  onReview: (callback: (review: CadReview) => void) => () => void;
+  onReviewClosed: (callback: (id: string) => void) => () => void;
+}
 export interface ElectronAPI {
   isElectron: true;
+  cad: ElectronCadAPI;
   windows: {
     newChat: (path?: "/" | "/personal" | "/leads" | "/permit-qaqc" | `/leads/${string}/chat`) => Promise<{ opened: boolean }>;
     openCompactChat: (projectSlug?: string, scope?: "firm" | "personal") => Promise<{ opened: boolean }>;
@@ -540,6 +615,7 @@ export interface ElectronAPI {
   notion: ElectronNotionAPI;
   schedule: ElectronScheduleAPI;
   personalCalendar: ElectronPersonalCalendarAPI;
+  googleCalendar: ElectronGoogleCalendarAPI;
 }
 
 declare global {

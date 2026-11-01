@@ -4,6 +4,9 @@ import { getProject, getProjectSlugs, getScheduleWithHash } from "@/lib/content"
 import { ProjectScheduleEditor } from "@/components/ProjectScheduleEditor";
 import { ProjectPlanningWorkspace } from "@/components/ProjectPlanningWorkspace";
 import { ProjectNotionSyncButton } from "@/components/ProjectNotionSyncButton";
+import { ProjectContractPlan } from "@/components/ProjectContractPlan";
+import { getProjectDetailsWithHash } from "@/lib/content/projectWorkspace";
+import { timelineRow } from "@/lib/scheduleInsights";
 
 export function generateStaticParams() {
   return getProjectSlugs().map((slug) => ({ slug }));
@@ -16,6 +19,7 @@ export default async function SchedulePage({ params }: { params: Promise<{ slug:
 
   const project = getProject(slug);
   const { schedule, hash } = getScheduleWithHash(slug);
+  const { details, hash: detailsHash } = getProjectDetailsWithHash(slug);
 
   return (
     <div className="flex flex-col gap-6">
@@ -30,11 +34,13 @@ export default async function SchedulePage({ params }: { params: Promise<{ slug:
           <ProjectNotionSyncButton slug={slug} projectName={project.meta.name} />
         )}
       </div>
+      <ProjectContractPlan slug={slug} initialDetails={details} initialHash={detailsHash} />
       <ProjectScheduleEditor
         slug={slug}
         milestones={schedule.milestones}
         initialHash={hash}
         notionLinked={Boolean(project.meta.notion_page_id)}
+        row={timelineRow({ slug, name: project.meta.name }, schedule.milestones, details)}
       />
       <ProjectPlanningWorkspace slug={slug} notionLinked={Boolean(project.meta.notion_page_id)} />
     </div>

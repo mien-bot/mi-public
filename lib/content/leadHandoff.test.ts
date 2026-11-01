@@ -37,7 +37,7 @@ function lead(overrides: Partial<Lead> = {}): Lead {
     notes: "Wants the waiting room reworked first.",
     contract_stage: "sent",
     contract_notes: "Fee split across two phases.",
-    dropbox_path: "1.00 PROJECTS/Old Lead Folder",
+    dropbox_path: "Projects/Old Lead Folder",
     ...overrides,
   });
 }
@@ -153,7 +153,7 @@ describe("buildLeadHandoffMarkdown", () => {
       folders: ARCHITECTURE_FOLDERS,
       leadsDir,
       projectSlug: "acme-clinic",
-      dropboxRelativePath: "1.00 PROJECTS/12_Acme Clinic",
+      dropboxRelativePath: "Projects/12_Acme Clinic",
       convertedDate: "2026-08-15",
     });
 
@@ -166,7 +166,7 @@ describe("buildLeadHandoffMarkdown", () => {
     expect(markdown).toContain("Sent the fee proposal.");
     expect(markdown).toContain("`09_SitePhotos/From-Lead/front.jpg` — Front elevation");
     // The lead's own Dropbox folder is named, never treated as something to copy or move.
-    expect(markdown).toContain("1.00 PROJECTS/Old Lead Folder");
+    expect(markdown).toContain("Projects/Old Lead Folder");
     expect(markdown).toContain("left in place");
   });
 
@@ -185,7 +185,7 @@ describe("buildLeadHandoffMarkdown", () => {
         folders: ARCHITECTURE_FOLDERS,
         leadsDir,
         projectSlug: "acme-clinic",
-        dropboxRelativePath: "1.00 PROJECTS/12_Acme Clinic",
+        dropboxRelativePath: "Projects/12_Acme Clinic",
         convertedDate: "2026-08-15",
       },
     );

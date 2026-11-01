@@ -431,6 +431,10 @@ describe("confirming a partial project-details proposal", () => {
     fee_notes: "",
     contract_link_or_path: "",
     phases: [],
+    contract_start_date: "",
+    contract_end_date: "",
+    contract_duration: "",
+    payments: [],
   };
 
   beforeEach(() => {

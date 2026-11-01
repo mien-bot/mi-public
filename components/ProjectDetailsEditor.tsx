@@ -176,6 +176,8 @@ export function ProjectDetailsEditor({ slug, initial, initialHash, dropboxPath, 
               planned_start_date: "",
               planned_end_date: "",
               paid: false,
+              progress_percent: null,
+              client_approved_date: "",
             }])}
             className="text-xs text-muted-foreground hover:underline"
           >

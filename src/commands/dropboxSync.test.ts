@@ -3,19 +3,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   preview: vi.fn(() => ({
     mirrored: true,
-    destination: "C:\\Dropbox\\STUDIO\\1.00 PROJECTS\\Demo\\Mi",
+    destination: "C:\\Dropbox\\STUDIO\\Projects\\Demo\\Mi",
     fileCount: 12,
   })),
   mirror: vi.fn(() => ({
     mirrored: true,
-    destination: "C:\\Dropbox\\STUDIO\\1.00 PROJECTS\\Demo\\Mi",
+    destination: "C:\\Dropbox\\STUDIO\\Projects\\Demo\\Mi",
     fileCount: 12,
   })),
 }));
 
 vi.mock("@/lib/content", () => ({
   getAllProjects: vi.fn(() => [
-    { slug: "demo", meta: { dropbox_path: "1.00 PROJECTS/Demo" } },
+    { slug: "demo", meta: { dropbox_path: "Projects/Demo" } },
     { slug: "unlinked", meta: { dropbox_path: null } },
   ]),
   getProjectSlugs: vi.fn(() => ["demo", "unlinked"]),

@@ -10,6 +10,7 @@ import {
   applyOptimisticScheduleReschedule,
   buildDragDuplicateProposal,
   buildDragRescheduleProposal,
+  GOOGLE_ENTRY_PREFIX,
   moveScheduleAnchor,
   scheduleDateKey,
   scheduleViewHeading,
@@ -18,9 +19,13 @@ import {
   type ScheduleDragMode,
 } from "@/components/scheduleCalendarModel";
 import { readJsonResponse } from "@/lib/readJsonResponse";
-import type { ScheduleSnapshot, ScheduleSnapshotEntry } from "@/types/electron";
+import { compareTier, scheduleEntryTier, slipWarnings, type TimelineRow } from "@/lib/scheduleInsights";
+import type { GoogleCalendarEvent, ScheduleSnapshot, ScheduleSnapshotEntry } from "@/types/electron";
 import { usePersonalTimezone } from "./usePersonalTimezone";
 import { StatusNotice } from "./UiState";
+import { TierLegend, UpcomingCriticalStrip, YearTimelineView } from "./YearTimelineView";
+
+type PendingDrop = { entry: ScheduleSnapshotEntry; mode: ScheduleDragMode; newDate: string; targetMinutes?: number };
 
 /** Notion "Date" values may be date-only or a full timestamp -- always group by the date portion. */
 function entryDateKey(entry: ScheduleSnapshotEntry): string | null {
@@ -38,9 +43,42 @@ export function StudioScheduleCalendar() {
   const [view, setView] = useState<ScheduleCalendarView>("month");
   const [dragging, setDragging] = useState<{ entry: ScheduleSnapshotEntry; mode: ScheduleDragMode } | null>(null);
   const [savingEntryId, setSavingEntryId] = useState<string | null>(null);
+  const [pendingDrop, setPendingDrop] = useState<PendingDrop | null>(null);
+  const [portfolio, setPortfolio] = useState<TimelineRow[]>([]);
+  const [portfolioGaps, setPortfolioGaps] = useState<string[]>([]);
   const today = new Date();
   const [anchor, setAnchor] = useState(() => new Date(today.getFullYear(), today.getMonth(), today.getDate()));
   const eventFormRef = useRef<HTMLDivElement>(null);
+  const portfolioYear = anchor.getFullYear();
+  const [googleName, setGoogleName] = useState<string | null>(null);
+  const [showGoogle, setShowGoogle] = useState(true);
+  const [googleEvents, setGoogleEvents] = useState<GoogleCalendarEvent[]>([]);
+  const googleEntries = useMemo<ScheduleSnapshotEntry[]>(() => googleEvents.map((event) => ({
+    notion_page_id: `${GOOGLE_ENTRY_PREFIX}${event.id}`, name: event.name, date: event.date, date_end: event.date_end,
+    start_time: null, end_time: null, last_edited_time: null, type: [], status: null, hours: null, attendees: [], project_page_ids: [],
+  })), [googleEvents]);
+
+  useEffect(() => {
+    const api = window.electronAPI?.googleCalendar;
+    if (!mounted || !api) return;
+    let live = true;
+    api.status().then(async (status) => {
+      if (!status.connected || !status.calendarId) return;
+      const events = await api.events(`${portfolioYear}-01-01`, `${portfolioYear}-12-31`);
+      if (live) { setGoogleName(status.calendarName); setGoogleEvents(events); }
+    }).catch(() => { if (live) setMessage("Mi could not read Google Calendar. Check Settings › Connections."); });
+    return () => { live = false; };
+  }, [mounted, portfolioYear]);
+
+  useEffect(() => {
+    if (!mounted) return;
+    let live = true;
+    fetch(`/api/schedule/portfolio?year=${portfolioYear}`)
+      .then((response) => readJsonResponse<{ rows: TimelineRow[]; unavailable: string[] }>(response, "Mi could not load project timelines."))
+      .then((data) => { if (live) { setPortfolio(data.rows); setPortfolioGaps(data.unavailable); } })
+      .catch((error) => { if (live) setMessage(error instanceof Error ? error.message : "Mi could not load project timelines."); });
+    return () => { live = false; };
+  }, [mounted, portfolioYear, snapshot]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Electron preload exists only after hydration
@@ -70,13 +108,26 @@ export function StudioScheduleCalendar() {
 
   const entriesByDate = useMemo(() => {
     const map = new Map<string, ScheduleSnapshotEntry[]>();
-    for (const entry of snapshot?.entries ?? []) {
+    for (const entry of [...(snapshot?.entries ?? []), ...(showGoogle ? googleEntries : [])]) {
       const key = entryDateKey(entry);
       if (!key) continue;
       map.set(key, [...(map.get(key) ?? []), entry]);
     }
+    for (const entries of map.values()) entries.sort((a, b) => compareTier(scheduleEntryTier(a.type), scheduleEntryTier(b.type)));
     return map;
-  }, [snapshot]);
+  }, [snapshot, googleEntries, showGoogle]);
+
+  /** Project rows plus Notion deadlines no project tracks, so the year view hides nothing critical. */
+  const yearRows = useMemo(() => {
+    const tracked = new Set(portfolio.flatMap((row) => row.markers.map((marker) => marker.notionEventId)));
+    const markers = (snapshot?.entries ?? [])
+      .filter((entry) => entry.date && !tracked.has(entry.notion_page_id) && ["critical", "high"].includes(scheduleEntryTier(entry.type)))
+      .map((entry) => ({ id: entry.notion_page_id, date: entry.date!.slice(0, 10), name: entry.name, tier: scheduleEntryTier(entry.type),
+        kind: "milestone" as const, done: entry.status === "Done", notionEventId: entry.notion_page_id }));
+    if (!markers.length) return portfolio;
+    return [...portfolio, { slug: "", name: "Other Notion deadlines", phases: [], markers, contractEnd: "",
+      details: { phases: [], payments: [], contract_end_date: "" } } satisfies TimelineRow];
+  }, [portfolio, snapshot]);
 
   const days = useMemo(() => scheduleVisibleDays(anchor, view), [anchor, view]);
 
@@ -95,7 +146,14 @@ export function StudioScheduleCalendar() {
   const initialEventDate = view === "month" && anchor.getFullYear() === today.getFullYear() && anchor.getMonth() === today.getMonth()
     ? todayKey
     : scheduleDateKey(anchor);
-  const navigationUnit = view === "month" ? "month" : view === "day" ? "day" : "week";
+  const navigationUnit = view === "year" ? "year" : view === "month" ? "month" : view === "day" ? "day" : "week";
+  const pendingWarnings = pendingDrop && pendingDrop.mode === "move"
+    ? slipWarnings(
+        portfolio.find((row) => row.markers.some((marker) => marker.notionEventId === pendingDrop.entry.notion_page_id))?.details ?? null,
+        pendingDrop.entry.date?.slice(0, 10) ?? pendingDrop.newDate,
+        pendingDrop.newDate,
+      )
+    : [];
 
   function openEventForm(date: string) {
     setEventDraftDate(date);
@@ -126,22 +184,35 @@ export function StudioScheduleCalendar() {
   }
 
   function openInNotion(entry: ScheduleSnapshotEntry) {
+    if (entry.notion_page_id.startsWith(GOOGLE_ENTRY_PREFIX)) {
+      const url = googleEvents.find((event) => `${GOOGLE_ENTRY_PREFIX}${event.id}` === entry.notion_page_id)?.url;
+      if (url) void window.electronAPI?.terminal.openLink(url).catch(() => setMessage("Mi could not open that Google Calendar event."));
+      return;
+    }
     window.electronAPI?.notion.open(entry.notion_page_id).catch(() => {
       setMessage("Mi could not open that page in Notion.");
     });
   }
 
-  async function applyDrop(newDate: string, targetMinutes?: number) {
+  /** A drop only proposes the change: nothing reaches Notion until it is confirmed below. */
+  function applyDrop(newDate: string, targetMinutes?: number) {
     if (!dragging) return;
     if (savingEntryId) {
       setDragging(null);
       setMessage("Wait for the current calendar change to finish syncing.");
       return;
     }
+    setPendingDrop({ ...dragging, newDate, targetMinutes });
+    setDragging(null);
+  }
+
+  async function confirmDrop(drop: PendingDrop) {
+    const { entry, mode, newDate, targetMinutes } = drop;
+    setPendingDrop(null);
     const previousSnapshot = snapshot;
     try {
-      if (dragging.mode === "duplicate") {
-        const proposal = buildDragDuplicateProposal(dragging.entry, newDate, crypto.randomUUID(), { targetMinutes, timezone });
+      if (mode === "duplicate") {
+        const proposal = buildDragDuplicateProposal(entry, newDate, crypto.randomUUID(), { targetMinutes, timezone });
         setDragging(null);
         if (!proposal || proposal.kind !== "schedule-duplicate") return;
         setSavingEntryId(proposal.data.eventPageId);
@@ -156,14 +227,13 @@ export function StudioScheduleCalendar() {
         setMessage(`${body.message ?? "Event duplicated."}${synced ? " Calendar synced." : " Use Sync now to refresh."}`);
         return;
       }
-      const proposal = buildDragRescheduleProposal(dragging.entry, newDate, crypto.randomUUID(), {
-        mode: dragging.mode,
+      const proposal = buildDragRescheduleProposal(entry, newDate, crypto.randomUUID(), {
+        mode,
         targetMinutes,
         timezone,
       });
       setDragging(null);
       if (!proposal || proposal.kind !== "schedule-reschedule") return;
-
       setSavingEntryId(proposal.data.eventPageId);
       setMessage(`Saving "${proposal.data.name}" to Notion…`);
       setSnapshot((current) => applyOptimisticScheduleReschedule(current, proposal));
@@ -256,9 +326,9 @@ export function StudioScheduleCalendar() {
         </div>
       )}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">Drag to move; hold Ctrl (Command on Mac) while dragging to duplicate. In week or day views, drag a timed Date range’s bottom handle to resize. Changes save to Notion and sync automatically.</p>
+        <p className="text-xs text-muted-foreground">Drag to move; hold Ctrl (Command on Mac) while dragging to duplicate. In week or day views, drag a timed Date range’s bottom handle to resize. You confirm each change before it saves to Notion.</p>
         <div className="inline-flex rounded-md border border-border p-1" aria-label="Calendar view">
-          {(["month", "week", "work-week", "day"] as const).map((option) => (
+          {(["year", "month", "week", "work-week", "day"] as const).map((option) => (
             <button
               key={option}
               type="button"
@@ -271,10 +341,21 @@ export function StudioScheduleCalendar() {
           ))}
         </div>
       </div>
+      <UpcomingCriticalStrip rows={yearRows} today={todayKey} />
+      {pendingDrop && <div role="alertdialog" aria-label="Confirm calendar change" className="mt-3 rounded-md border border-accent/50 bg-background p-3 text-sm">
+        <p className="font-medium">{pendingDrop.mode === "duplicate" ? "Duplicate" : pendingDrop.mode === "resize" ? "Change the time of" : "Move"} “{pendingDrop.entry.name}”{pendingDrop.mode === "resize" ? "" : ` to ${pendingDrop.newDate}`}?</p>
+        {pendingWarnings.map((warning) => <p key={warning} className="mt-1 text-status-warning-foreground">{warning}</p>)}
+        <div className="mt-2 flex gap-2">
+          <button type="button" onClick={() => void confirmDrop(pendingDrop)} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground">Confirm and save to Notion</button>
+          <button type="button" onClick={() => setPendingDrop(null)} className="rounded-md border border-border px-3 py-1.5 text-sm">Cancel</button>
+        </div>
+      </div>}
       <h3 className="mt-3 text-center font-medium">{scheduleViewHeading(anchor, view)}</h3>
+      {portfolioGaps.length > 0 && <p className="mt-1 text-center text-xs text-status-warning-foreground">Couldn’t read: {portfolioGaps.join(", ")}</p>}
       <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-muted-foreground" />Personal / internal</span>
         <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-accent" />Project-linked · stable color per project</span>
+        {googleName && <label className="inline-flex items-center gap-1.5"><input type="checkbox" checked={showGoogle} onChange={(event) => setShowGoogle(event.target.checked)} />Google: {googleName} (read-only)</label>}
       </div>
       {(outsideSnapshotWindow || snapshotIsStale) && (
         <StatusNotice tone="warning" title="Refresh recommended" className="mt-2">
@@ -283,7 +364,10 @@ export function StudioScheduleCalendar() {
             : "This schedule snapshot is more than 8 hours old. Sync now before making planning decisions."}
         </StatusNotice>
       )}
-      {view === "month" ? (
+      {view === "year" ? <>
+        <TierLegend />
+        <YearTimelineView rows={yearRows} year={anchor.getFullYear()} today={todayKey} />
+      </> : view === "month" ? (
         <MonthScheduleView
           days={days}
           anchor={anchor}
@@ -292,7 +376,7 @@ export function StudioScheduleCalendar() {
           onOpen={openInNotion}
           onDragStart={beginDrag}
           onDragEnd={() => setDragging(null)}
-          onDrop={(date) => void applyDrop(date)}
+          onDrop={(date) => applyDrop(date)}
           onCreate={openEventForm}
           timezone={timezone}
           savingEntryId={savingEntryId}
@@ -306,7 +390,7 @@ export function StudioScheduleCalendar() {
           onOpen={openInNotion}
           onDragStart={beginDrag}
           onDragEnd={() => setDragging(null)}
-          onDrop={(date, minutes) => void applyDrop(date, minutes)}
+          onDrop={(date, minutes) => applyDrop(date, minutes)}
           onCreate={openEventForm}
           timezone={timezone}
           savingEntryId={savingEntryId}

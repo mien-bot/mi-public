@@ -31,6 +31,8 @@ const {
   isFirmAgentScope,
 } = require("./firmScopedAgentContext");
 const { createTerminalManager } = require("./terminalManager");
+const { createCadService } = require("./cad/service");
+const { createReviewBroker, serveReviews } = require("./cad/review");
 const { createTerminalHistory } = require("./terminalHistory");
 const { openTerminalLink } = require("./terminalLinks");
 const { pickProposalFile } = require("./proposalFilePicker");
@@ -44,6 +46,7 @@ const {
   listPersonalCalendars,
   validateCalendarSelection,
 } = require("./personalNotionCalendar");
+const googleCalendar = require("./googleCalendar");
 const { buildDiagnostics } = require("./diagnostics");
 const { applyHarnessPreview, ensureProjectHarness, previewHarness } = require("./agentHarness");
 const { applyFirmHarness, previewFirmHarness, resolveFirmHarnessRoot } = require("./firmHarness");
@@ -151,6 +154,7 @@ let shortcutRegistered = false;
 let isQuitting = false;
 let desktopReady = false;
 let configStore = null;
+let cadService = null;
 let editableMiConfigPath = null;
 let runtimeDataRoot = null;
 let projectContextTracker = null;
@@ -484,11 +488,12 @@ const terminalManager = createTerminalManager({
   }),
   resolveCwd: resolveProjectCwd,
   env: agentEnvironment(),
-  sessionEnvironment({ cwd }) {
+  sessionEnvironment({ cwd, resolvedCwd }) {
     const match = /^projects\/([a-z0-9]+(?:-[a-z0-9]+)*)$/.exec(String(cwd).replaceAll("\\", "/"));
     if (!match) return {};
     return {
       MI_AGENT_PROJECT_SLUG: match[1],
+      ...(process.platform === "win32" ? { MI_CAD_LAUNCHER: cadService.launcher(cwd, resolvedCwd) } : {}),
       MI_TERMINAL_CAPABILITY_TOKEN: crypto
         .createHmac("sha256", TERMINAL_CAPABILITY_SECRET)
         .update(match[1])
@@ -503,7 +508,55 @@ const terminalManager = createTerminalManager({
   },
 });
 
+const cadAgentTerminals = new Set();
+let cadReviews = null;
+let cadReviewServer = null;
+// Matches TerminalPanel's durable key for a workspace session.
+const terminalSessionKey = (workspace, session) => `workspace:${workspace}${session === "1" ? "" : `:session:${session}`}`;
+
 function setupTerminalIPC() {
+  ipcMain.handle("cad:status", (_event, { workspace, application }) => cadService.status(workspace, application));
+  ipcMain.handle("cad:bind", (_event, { workspace, application, session, document }) => cadService.bind(workspace, application, session, document));
+  ipcMain.handle("cad:disconnect", (_event, { workspace, application }) => cadService.disconnect(workspace, application));
+  ipcMain.handle("cad:start-agent", (_event, { workspace, engine }) => {
+    if (currentTerminalWorkspace(workspace) !== workspace) throw new Error("This project's terminal workspace has changed. Reopen its terminal first.");
+    // A reconnect reaches a running agent on its next call, so it never needs a second one.
+    const running = cadService.agentRunning(workspace) && ["1", "2", "3", "4"].find(slot => cadAgentTerminals.has(terminalManager.liveSessionId(terminalSessionKey(workspace, slot))));
+    if (running) { createPaneWindow("terminal", { workspace, session: running }); return { session: running, existing: true }; }
+    const command = cadService.agentCommand(workspace, engine);
+    // Only a session with no shell is safe: typing into a live one could reach a running program.
+    const session = ["2", "3", "4", "1"].find(slot => terminalManager.liveSessionId(terminalSessionKey(workspace, slot)) === null && !livePaneWindow(terminalPaneKey(workspace, slot)));
+    if (!session) throw new Error("All four terminal sessions for this project are in use. Exit one, then start the agent again.");
+    const { id } = terminalManager.create({ cwd: workspace, sessionKey: terminalSessionKey(workspace, session) });
+    cadAgentTerminals.add(id);
+    terminalManager.write(id, command);
+    createPaneWindow("terminal", { workspace, session });
+    return { session };
+  });
+  ipcMain.handle("cad:reviews", () => cadReviews?.list() ?? []);
+  ipcMain.handle("cad:review-shown", (event, { id }) => {
+    const shown = cadReviews?.shown(id) ?? false;
+    const window = BrowserWindow.fromWebContents(event.sender);
+    if (shown && window && !window.isFocused()) window.flashFrame(true);
+    return shown;
+  });
+  ipcMain.handle("cad:review-answer", (_event, { id, approved }) => cadReviews?.answer(id, approved === true) ?? false);
+  ipcMain.handle("cad:lessons", () => cadService.lessons.list());
+  ipcMain.handle("cad:lesson-add", (_event, { text }) => cadService.lessons.add(text));
+  ipcMain.handle("cad:lesson-review", (_event, { id, accept }) => cadService.lessons.review(id, accept === true));
+  ipcMain.handle("cad:lesson-remove", (_event, { id }) => cadService.lessons.remove(id));
+  ipcMain.handle("cad:is-agent-session", (_event, { workspace, session }) => cadAgentTerminals.has(terminalManager.liveSessionId(terminalSessionKey(workspace, session))));
+  ipcMain.handle("cad:install", async (event, { application, action }) => {
+    if (!["install", "uninstall"].includes(action) || !["revit", "autocad"].includes(application)) throw new Error("Invalid CAD installation action.");
+    const autocad = application === "autocad";
+    const answer = await dialog.showMessageBox(BrowserWindow.fromWebContents(event.sender), {
+      type: "question", buttons: ["Cancel", action === "install" ? "Install / repair" : "Remove add-in"], defaultId: 0, cancelId: 0,
+      message: autocad ? (action === "install" ? "Install Mi's native AutoCAD 2027 add-in for this Windows user?" : "Remove Mi's native AutoCAD add-in?") : (action === "install" ? "Install Mi's native Revit 26.5 add-in for this Windows user?" : "Remove Mi's native Revit add-in registration?"),
+      detail: autocad ? "Close AutoCAD first. Drawings, other plug-ins, and AutoCAD's security settings are unchanged. No administrator rights are required." : "Close Revit first. Your existing pyRevit extension and project models are preserved. No administrator rights or Python installation are required.",
+    });
+    if (answer.response !== 1) return { message: "Canceled. Nothing changed." };
+    return cadService.install(application, action);
+  });
   ipcMain.handle("terminal:open-link", (_event, target) => openTerminalLink(target, shell));
   ipcMain.handle("terminal:resolve-workspace", (_event, workspace) => currentTerminalWorkspace(workspace));
   ipcMain.handle("terminal:create", (_event, options) => {
@@ -741,6 +794,53 @@ function setupConfigurationIPC() {
     const token = await configStore.getPersonalNotionToken();
     return createPersonalCalendarEntry({ token, settings: configStore.getSettings(), input });
   });
+  // The refresh token stays in this process: the renderer gets calendars and events, never tokens.
+  const googleStatus = () => {
+    const config = configStore.getPublicConfig();
+    return { connected: config.hasGoogleCalendar, hasClient: Boolean(config.googleClientId), calendarId: config.googleCalendarId, calendarName: config.googleCalendarName };
+  };
+  async function googleAccessToken() {
+    const refreshToken = await configStore.getGoogleRefreshToken();
+    if (!refreshToken) throw new Error("Connect Google Calendar in Settings first.");
+    return googleCalendar.accessToken({
+      clientId: configStore.getSettings().googleClientId,
+      clientSecret: await configStore.getGoogleClientSecret(),
+      refreshToken,
+    });
+  }
+  ipcMain.handle("google-calendar:status", () => googleStatus());
+  ipcMain.handle("google-calendar:set-client", async (_event, { clientId, clientSecret }) => {
+    if (typeof clientId !== "string" || !clientId.trim()) throw new Error("Enter the Google client ID.");
+    if (clientSecret) await configStore.setGoogleClientSecret(clientSecret);
+    configStore.updateSettings({ googleClientId: clientId });
+    return googleStatus();
+  });
+  ipcMain.handle("google-calendar:connect", async () => {
+    const { googleClientId } = configStore.getSettings();
+    if (!googleClientId) throw new Error("Add the Google client ID first.");
+    const refreshToken = await googleCalendar.signIn({
+      clientId: googleClientId,
+      clientSecret: await configStore.getGoogleClientSecret(),
+      openExternal: (url) => shell.openExternal(url),
+    });
+    await configStore.setGoogleRefreshToken(refreshToken);
+    return googleStatus();
+  });
+  ipcMain.handle("google-calendar:calendars", async () => googleCalendar.listCalendars({ token: await googleAccessToken() }));
+  ipcMain.handle("google-calendar:select", async (_event, { calendarId }) => {
+    const calendars = await googleCalendar.listCalendars({ token: await googleAccessToken() });
+    const calendar = calendars.find((candidate) => candidate.id === calendarId);
+    if (!calendar) throw new Error("That calendar is no longer available.");
+    configStore.updateSettings({ googleCalendarId: calendar.id, googleCalendarName: calendar.name });
+    return googleStatus();
+  });
+  ipcMain.handle("google-calendar:events", async (_event, { from, to }) => {
+    if (![from, to].every((value) => /^\d{4}-\d{2}-\d{2}$/.test(String(value)))) throw new Error("Use YYYY-MM-DD.");
+    const { googleCalendarId } = configStore.getSettings();
+    if (!googleCalendarId) return [];
+    return googleCalendar.listEvents({ token: await googleAccessToken(), calendarId: googleCalendarId, from, to });
+  });
+  ipcMain.handle("google-calendar:disconnect", () => { configStore.clearGoogleCalendar(); return googleStatus(); });
   ipcMain.handle("setup:set-claude-subscription-token", (_event, { token }) =>
     configStore.setClaudeSubscriptionToken(token));
   ipcMain.handle("setup:clear-claude-subscription-token", () =>
@@ -1028,6 +1128,22 @@ function setupWorkspaceIPC() {
     if (result.canceled) return result;
     try {
       return { relativePath: normalizeDropboxSelection(root, result.path) };
+    } catch (error) {
+      return { error: error.message };
+    }
+  });
+  ipcMain.handle("dropbox:pick-folder-within", async (_event, payload) => {
+    const root = configStore.getSettings().dropboxRoot;
+    if (!root) return { error: "Select a local STUDIO Dropbox root in Settings first." };
+    try {
+      const workspaceRoot = path.join(root, normalizeDropboxSelection(root, path.join(root, String(payload?.workspaceFolder ?? ""))));
+      const result = await pickDirectory("Choose a folder inside this project's Dropbox folder", workspaceRoot);
+      if (result.canceled) return result;
+      const relative = path.relative(workspaceRoot, result.path);
+      if (relative.startsWith("..") || path.isAbsolute(relative)) {
+        return { error: "Choose a folder inside this project's linked Dropbox folder." };
+      }
+      return { relativePath: relative ? relative.split(path.sep).join("/") : "." };
     } catch (error) {
       return { error: error.message };
     }
@@ -1754,6 +1870,25 @@ if (hasSingleInstanceLock) {
       ensureEditableMiConfig({ templatePath: MI_CONFIG_TEMPLATE_PATH, configPath: editableMiConfigPath });
     }
     runtimeDataRoot = configuredRuntimeDataRoot();
+    cadService = createCadService({
+      userData: app.getPath("userData"), localAppData: process.env.LOCALAPPDATA || app.getPath("userData"), appData: app.getPath("appData"),
+      payloadDirectory: app.isPackaged ? path.join(process.resourcesPath, "revit", "2026") : path.join(DEV_ROOT, "integrations", "revit", "artifacts", "2026"),
+      autocadPayloadDirectory: app.isPackaged ? path.join(process.resourcesPath, "autocad", "2027") : path.join(DEV_ROOT, "integrations", "autocad", "artifacts", "2027"),
+      executable: process.execPath, serverScript: path.join(__dirname, "cad", "mcpServer.js"), configStore,
+      resolveDirectory: resolveProjectCwd,
+      validateWorkspace(workspace) {
+        if (currentTerminalWorkspace(workspace) !== workspace) throw new Error("This project's terminal link changed. Reopen its terminal.");
+        readProject(workspace.slice(9));
+      },
+    });
+    if (process.platform === "win32") {
+      cadReviews = createReviewBroker({
+        describe: cadService.describeReview, apply: cadService.applyReviewed,
+        notify: review => broadcastToTrustedWindows("cad:review", review),
+        close: id => broadcastToTrustedWindows("cad:review-closed", id),
+      });
+      cadReviewServer = serveReviews({ broker: cadReviews, file: cadService.reviewFile });
+    }
     projectContextTracker = createProjectContextTracker({
       trustedOrigin: LOCAL_ORIGIN,
       projectExists: localProjectExists,
@@ -1786,5 +1921,6 @@ if (hasSingleInstanceLock) {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  cadReviewServer?.stop();
   shutdown();
 });

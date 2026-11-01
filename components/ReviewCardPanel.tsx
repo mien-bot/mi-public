@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { loadMiProfile } from "@/components/profilePreferences";
 import type { ReviewCardView } from "@/lib/content/reviewInboxService";
 import type { ReviewDestinationKind } from "@/lib/content/reviewInbox";
@@ -51,7 +51,10 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
   defaultOpen?: boolean;
 }) {
   const router = useRouter();
-  const { card, content, meeting, destinations, confirmation } = view;
+  const previewRef = useRef<HTMLDivElement>(null);
+  const { card, content, meeting } = view;
+  // A chosen folder is a batch-level decision; a single card uses the fixed destinations.
+  const destinations = useMemo(() => view.destinations.filter((option) => !option.requiresFolder), [view.destinations]);
   const [busy, setBusy] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -76,6 +79,13 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
     () => destinations.find((option) => option.ref.kind === pendingDestination) ?? null,
     [destinations, pendingDestination],
   );
+
+  useEffect(() => {
+    if (pendingDestination) {
+      previewRef.current?.focus();
+      previewRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [pendingDestination]);
 
   async function post(payload: Record<string, unknown>, label: string) {
     setBusy(label);
@@ -145,6 +155,7 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
       )}
 
       {meeting ? (
+        <details className="mt-2" open={defaultOpen || undefined}><summary className="cursor-pointer text-sm">Meeting details</summary>
         <div className="mt-3 text-sm">
           {meeting.attendees.length > 0 && (
             <p><span className="text-muted-foreground">Attendees:</span> {meeting.attendees.join(", ")}</p>
@@ -172,11 +183,12 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
           <Bullets title="Risks" items={meeting.risks} />
           {meeting.remainder && <p className="mt-3 whitespace-pre-line text-sm">{meeting.remainder}</p>}
         </div>
+        </details>
       ) : (
         content && (
           <p className="mt-2 whitespace-pre-line text-sm">
-            {expanded || content.body.length <= 400 ? content.body : `${content.body.slice(0, 400)}…`}
-            {content.body.length > 400 && (
+            {expanded || content.body.length <= 180 ? content.body : `${content.body.slice(0, 180)}…`}
+            {content.body.length > 180 && (
               <button
                 type="button"
                 onClick={() => setExpanded((open) => !open)}
@@ -189,6 +201,7 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
         )
       )}
 
+      <details className="mt-2"><summary className="cursor-pointer text-xs text-muted-foreground">Details &amp; source</summary>
       {content?.why && <p className="mt-2 text-sm text-muted-foreground">Why: {content.why}</p>}
 
       {content && content.evidence.length > 0 && (
@@ -215,14 +228,10 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
         </p>
       </details>
 
+      </details>
+
       {card.edited && (
         <p className="mt-1 text-xs text-accent">Edited before confirmation. The original entry file is unchanged.</p>
-      )}
-
-      {isPending && confirmation.required && (
-        <p className="mt-2 text-xs text-muted-foreground">
-          Always needs your confirmation — {confirmation.reason}
-        </p>
       )}
 
       {card.status === "applied" && (
@@ -299,7 +308,7 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
       )}
 
       {preview && (
-        <div className="mt-3 rounded-md border border-accent/60 bg-accent/5 p-3">
+        <div ref={previewRef} tabIndex={-1} role="region" aria-label="Save preview" className="mt-3 rounded-md border border-accent/60 bg-accent/5 p-3">
           <h4 className="text-sm font-medium">Confirm this change</h4>
           <dl className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
             <div>
@@ -350,6 +359,9 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
         </div>
       )}
 
+      {isPending && !destinations.some(option => option.available) && <p role="status" className="mt-2 text-sm text-destructive">
+        {destinations.map(option => option.unavailableReason).filter(Boolean).join(" ") || "No save destination is available."} You can delete this item from the inbox.
+      </p>}
       {isPending && (
         <div className="mt-3 flex flex-wrap gap-2">
           {destinations.map((option) => (
@@ -370,7 +382,7 @@ export function ReviewCardPanel({ view, defaultOpen = false }: {
             onClick={() => setEditing((open) => !open)}
             className="rounded-md border border-border px-3 py-1.5 text-xs hover:border-accent disabled:opacity-60"
           >
-            Edit before confirming
+            Edit
           </button>
           {view.splitPreview.length > 1 && (
             <button

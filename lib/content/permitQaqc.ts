@@ -19,6 +19,11 @@ export function permitQaqcDir(slug: string, permitQaqcDirRoot: string = resolveF
   return path.join(permitQaqcDirRoot, slug);
 }
 
+/** Confirmed review findings too long for qaqc.yaml's capped Notes field. */
+export function permitQaqcMemoryPath(slug: string, permitQaqcDirRoot?: string): string {
+  return path.join(permitQaqcDir(slug, permitQaqcDirRoot), "memory", "notes.md");
+}
+
 /** permit-qaqc/<slug>/qaqc.yaml — one folder per engagement, linked to its real Dropbox Received/Sent/Admin/Reference folder. */
 export function getPermitQaqcSlugs(permitQaqcDirRoot: string = resolveFirmDataDir("permit-qaqc").dir): string[] {
   return listDirs(permitQaqcDirRoot);

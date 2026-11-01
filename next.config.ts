@@ -44,6 +44,7 @@ const nextConfig: NextConfig = {
       "./docs/**/*",
       "./electron/**/*",
       "./installer/**/*",
+      "./integrations/**/*",
       "./leads/**/*",
       "./lib/**/*",
       "./library/**/*",

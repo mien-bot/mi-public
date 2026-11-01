@@ -66,11 +66,11 @@ function request(body: unknown) {
 }
 
 const rescheduleProposal = {
-  id: "move-riya",
-  title: "Move Riya Meeting",
+  id: "move-jordan",
+  title: "Move Jordan Meeting",
   reason: "Requested by user",
   kind: "schedule-reschedule",
-  data: { eventPageId: PAGE_ID, name: "Riya Meeting", currentDate: "2026-07-17", newDate: "2026-07-24" },
+  data: { eventPageId: PAGE_ID, name: "Jordan Meeting", currentDate: "2026-07-17", newDate: "2026-07-24" },
 };
 
 const statusProposal = {

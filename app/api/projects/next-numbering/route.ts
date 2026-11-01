@@ -22,7 +22,7 @@ export async function GET() {
   let dropboxFolderPrefix: string | null = null;
   if (DROPBOX_ROOT) {
     try {
-      const projectsRoot = path.join(DROPBOX_ROOT, "1.00 PROJECTS");
+      const projectsRoot = path.join(DROPBOX_ROOT, "Projects");
       if (fs.existsSync(projectsRoot)) {
         let max = 0;
         for (const entry of fs.readdirSync(projectsRoot, { withFileTypes: true })) {

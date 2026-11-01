@@ -1,0 +1,122 @@
+using System.Collections.Concurrent;
+using System.IO.Pipes;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Windows.Threading;
+
+namespace Mi.AutoCad;
+
+internal sealed class Work(JsonObject request, CancellationToken cancellation)
+{
+    internal readonly JsonObject Request = request;
+    internal readonly CancellationToken Cancellation = cancellation;
+    internal readonly DateTime Deadline = DateTime.UtcNow.AddSeconds(55);
+    internal readonly TaskCompletionSource<JsonObject> Result = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    internal void Check() { Cancellation.ThrowIfCancellationRequested(); if (DateTime.UtcNow >= Deadline) throw new TimeoutException("Request expired; prepare a new request."); }
+}
+
+// AutoCAD's API is single-threaded. Pipe workers only queue; the dispatcher captured on
+// AutoCAD's main thread runs everything. Revit's ExternalEvent has no equivalent here.
+internal sealed class Bridge : IDisposable
+{
+    internal readonly Operations Handler;
+    private readonly Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
+    private readonly ConcurrentQueue<Work> queue = new();
+    private readonly SemaphoreSlim clients = new(8);
+    private CancellationTokenSource? lifetime;
+    private string? discoveryFile;
+    private bool draining;
+    internal bool Running => lifetime is { IsCancellationRequested: false };
+    internal Bridge(Operations handler) => Handler = handler;
+    internal void Start()
+    {
+        if (Running) return;
+        Handler.Reset();
+        lifetime = new CancellationTokenSource();
+        var session = Guid.NewGuid().ToString("N");
+        var pipe = $"mi-autocad-{Environment.ProcessId}-{session}";
+        var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mi", "AutoCAD", "sessions");
+        Directory.CreateDirectory(directory);
+        discoveryFile = Path.Combine(directory, session + ".json");
+        File.WriteAllText(discoveryFile, JsonSerializer.Serialize(new { schema = 1, application = "AutoCAD", year = "2027", pid = Environment.ProcessId, session, pipe, version = "0.1.0" }), new UTF8Encoding(false));
+        _ = Task.Run(() => Listen(pipe, lifetime.Token));
+    }
+    private async Task Listen(string name, CancellationToken cancellation)
+    {
+        while (!cancellation.IsCancellationRequested)
+        {
+            NamedPipeServerStream? stream = null;
+            var acquired = false;
+            try
+            {
+                await clients.WaitAsync(cancellation); acquired = true;
+                stream = new NamedPipeServerStream(name, PipeDirection.InOut, 8, PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                await stream.WaitForConnectionAsync(cancellation);
+                _ = Serve(stream, cancellation);
+                stream = null; acquired = false; // Serve owns both resources.
+            }
+            catch (OperationCanceledException) { break; }
+            catch (System.Exception) { if (!cancellation.IsCancellationRequested) await Task.Delay(500, cancellation).ConfigureAwait(false); }
+            finally { stream?.Dispose(); if (acquired) clients.Release(); }
+        }
+    }
+    private async Task Serve(NamedPipeServerStream stream, CancellationToken lifetimeToken)
+    {
+        using (stream)
+        using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(lifetimeToken))
+        {
+            timeout.CancelAfter(TimeSpan.FromSeconds(60));
+            try
+            {
+                using var reader = new StreamReader(stream, new UTF8Encoding(false, true), false, 4096, true);
+                using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
+                var text = new StringBuilder();
+                var buffer = new char[1];
+                while (await reader.ReadAsync(buffer.AsMemory(), timeout.Token) > 0 && buffer[0] != '\n')
+                {
+                    if (text.Length >= 1_048_576) throw new InvalidDataException("Request too large.");
+                    text.Append(buffer[0]);
+                }
+                var request = JsonNode.Parse(text.ToString()) as JsonObject ?? throw new InvalidDataException("Expected an object.");
+                if (queue.Count >= 16) throw new InvalidOperationException("AutoCAD request queue is full.");
+                var work = new Work(request, timeout.Token);
+                queue.Enqueue(work);
+                // Priorities below Input wait for WPF's own idle check, which AutoCAD's message loop never satisfies.
+                _ = dispatcher.BeginInvoke(DispatcherPriority.Normal, Drain);
+                JsonObject result;
+                try { result = await work.Result.Task.WaitAsync(timeout.Token); }
+                catch (OperationCanceledException) { result = new JsonObject { ["ok"] = false, ["error"] = "AutoCAD request expired. Do not automatically retry edits; inspect the drawing first." }; }
+                await writer.WriteLineAsync(result.ToJsonString().AsMemory(), lifetimeToken);
+            }
+            catch (System.Exception) { /* Broken connections never log drawing data or crash AutoCAD. */ }
+            finally { clients.Release(); }
+        }
+    }
+    private void Drain()
+    {
+        // A review dialog pumps messages, so this can be re-entered while one request is open.
+        // The outer loop picks up anything queued meanwhile; requests never interleave.
+        if (draining) return;
+        draining = true;
+        try
+        {
+            while (queue.TryDequeue(out var work))
+            {
+                try { work.Check(); work.Result.TrySetResult(new JsonObject { ["ok"] = true, ["result"] = Handler.Run(work) }); }
+                catch (System.Exception ex) { work.Result.TrySetResult(new JsonObject { ["ok"] = false, ["error"] = ex.Message }); }
+            }
+        }
+        finally { draining = false; }
+    }
+    internal void Stop()
+    {
+        lifetime?.Cancel();
+        while (queue.TryDequeue(out var work)) work.Result.TrySetCanceled();
+        Handler.Reset();
+        if (discoveryFile != null) { try { File.Delete(discoveryFile); } catch (IOException) { } }
+        discoveryFile = null;
+    }
+    public void Dispose() { Stop(); lifetime?.Dispose(); }
+}

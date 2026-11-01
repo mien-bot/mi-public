@@ -2,6 +2,31 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("electronAPI", {
   isElectron: true,
+  cad: {
+    status: (workspace, application) => ipcRenderer.invoke("cad:status", { workspace, application }),
+    bind: (workspace, application, session, document) => ipcRenderer.invoke("cad:bind", { workspace, application, session, document }),
+    disconnect: (workspace, application) => ipcRenderer.invoke("cad:disconnect", { workspace, application }),
+    install: (application, action) => ipcRenderer.invoke("cad:install", { application, action }),
+    lessons: () => ipcRenderer.invoke("cad:lessons"),
+    addLesson: (text) => ipcRenderer.invoke("cad:lesson-add", { text }),
+    reviewLesson: (id, accept) => ipcRenderer.invoke("cad:lesson-review", { id, accept }),
+    removeLesson: (id) => ipcRenderer.invoke("cad:lesson-remove", { id }),
+    startAgent: (workspace, engine) => ipcRenderer.invoke("cad:start-agent", { workspace, engine }),
+    isAgentSession: (workspace, session) => ipcRenderer.invoke("cad:is-agent-session", { workspace, session }),
+    reviews: () => ipcRenderer.invoke("cad:reviews"),
+    reviewShown: (id) => ipcRenderer.invoke("cad:review-shown", { id }),
+    answerReview: (id, approved) => ipcRenderer.invoke("cad:review-answer", { id, approved }),
+    onReview: (callback) => {
+      const listener = (_event, review) => callback(review);
+      ipcRenderer.on("cad:review", listener);
+      return () => ipcRenderer.removeListener("cad:review", listener);
+    },
+    onReviewClosed: (callback) => {
+      const listener = (_event, id) => callback(id);
+      ipcRenderer.on("cad:review-closed", listener);
+      return () => ipcRenderer.removeListener("cad:review-closed", listener);
+    },
+  },
   setup: {
     get: () => ipcRenderer.invoke("setup:get"),
     revealMiConfig: () => ipcRenderer.invoke("setup:reveal-mi-config"),
@@ -99,6 +124,15 @@ contextBridge.exposeInMainWorld("electronAPI", {
   schedule: {
     getSnapshot: () => ipcRenderer.invoke("schedule:get-snapshot"),
   },
+  googleCalendar: {
+    status: () => ipcRenderer.invoke("google-calendar:status"),
+    setClient: (clientId, clientSecret) => ipcRenderer.invoke("google-calendar:set-client", { clientId, clientSecret }),
+    connect: () => ipcRenderer.invoke("google-calendar:connect"),
+    calendars: () => ipcRenderer.invoke("google-calendar:calendars"),
+    select: (calendarId) => ipcRenderer.invoke("google-calendar:select", { calendarId }),
+    events: (from, to) => ipcRenderer.invoke("google-calendar:events", { from, to }),
+    disconnect: () => ipcRenderer.invoke("google-calendar:disconnect"),
+  },
   personalCalendar: {
     status: () => ipcRenderer.invoke("personal-calendar:status"),
     setToken: (token) => ipcRenderer.invoke("personal-calendar:set-token", { token }),
@@ -116,6 +150,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   dropbox: {
     pickProjectFolder: () => ipcRenderer.invoke("dropbox:pick-project-folder"),
+    pickFolderWithin: (workspaceFolder) => ipcRenderer.invoke("dropbox:pick-folder-within", { workspaceFolder }),
     pickSharedFolder: () => ipcRenderer.invoke("dropbox:pick-shared-folder"),
     inspectSharedData: (relativePath) => ipcRenderer.invoke("dropbox:inspect-shared-data", { relativePath }),
     findSharedData: () => ipcRenderer.invoke("dropbox:find-shared-data"),

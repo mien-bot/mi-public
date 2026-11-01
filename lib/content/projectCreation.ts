@@ -82,7 +82,7 @@ export function resolveDropboxTarget(relativePath: string): string {
   if (!relative || relative === ".." || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) {
     throw new ProjectCreationError("Dropbox folder escapes the configured root.", 400);
   }
-  const projectsRoot = path.join(realRoot, "1.00 PROJECTS");
+  const projectsRoot = path.join(realRoot, "Projects");
   if (fs.existsSync(projectsRoot)) {
     const realProjectsRoot = fs.realpathSync(projectsRoot);
     const relativeToRoot = path.relative(realRoot, realProjectsRoot);

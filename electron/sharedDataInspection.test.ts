@@ -13,7 +13,7 @@ const { inspectSharedData, totalRecords, findSharedDataCandidates } = require(".
 
 const roots: string[] = [];
 
-function machine({ seedShared, sharedFolderName = "7.00 Mi Data" }: {
+function machine({ seedShared, sharedFolderName = "Mi Data" }: {
   seedShared: boolean;
   sharedFolderName?: string;
 }) {
@@ -161,18 +161,18 @@ describe("finding the firm's Mi data folder inside a Dropbox root", () => {
   });
 
   it("finds a folder nested one level below the Dropbox root", () => {
-    const { dropboxRoot } = machine({ seedShared: true, sharedFolderName: "5.00 SOFTWARE DEV/Mi Data" });
-    expect(findSharedDataCandidates(dropboxRoot)[0].relativePath).toBe("5.00 SOFTWARE DEV/Mi Data");
+    const { dropboxRoot } = machine({ seedShared: true, sharedFolderName: "Software/Mi Data" });
+    expect(findSharedDataCandidates(dropboxRoot)[0].relativePath).toBe("Software/Mi Data");
   });
 
   it("ignores ordinary project folders that hold no Mi records", () => {
     const { dropboxRoot } = machine({ seedShared: true });
-    fs.mkdirSync(path.join(dropboxRoot, "1.00 PROJECTS", "06_Gamma", "Drawings"), { recursive: true });
-    fs.writeFileSync(path.join(dropboxRoot, "1.00 PROJECTS", "06_Gamma", "Drawings", "a.pdf"), "x");
+    fs.mkdirSync(path.join(dropboxRoot, "Projects", "06_Gamma", "Drawings"), { recursive: true });
+    fs.writeFileSync(path.join(dropboxRoot, "Projects", "06_Gamma", "Drawings", "a.pdf"), "x");
 
     const candidates = findSharedDataCandidates(dropboxRoot);
     expect(candidates).toHaveLength(1);
-    expect(candidates[0].relativePath).toBe("7.00 Mi Data");
+    expect(candidates[0].relativePath).toBe("Mi Data");
   });
 
   it("ranks the fullest candidate first when a stale copy also exists", () => {
@@ -182,7 +182,7 @@ describe("finding the firm's Mi data folder inside a Dropbox root", () => {
     fs.writeFileSync(path.join(stale, "projects", "example-project-18", "project.yaml"), "name: Old\n");
 
     const candidates = findSharedDataCandidates(dropboxRoot) as Array<{ relativePath: string }>;
-    expect(candidates.map((entry) => entry.relativePath)).toEqual(["7.00 Mi Data", "Mi Data (old)"]);
+    expect(candidates.map((entry) => entry.relativePath)).toEqual(["Mi Data", "Mi Data (old)"]);
   });
 
   it("returns nothing rather than guessing when no folder holds Mi records", () => {

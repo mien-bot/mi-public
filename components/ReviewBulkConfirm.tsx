@@ -47,7 +47,7 @@ export function ReviewBulkConfirm({
 
   // Only destinations every selected card can actually reach.
   const destinations = selectedViews.length > 0 && workspaces.size === 1
-    ? selectedViews[0].destinations.filter((option) =>
+    ? selectedViews[0].destinations.filter((option) => !option.requiresFolder &&
       selectedViews.every((view) =>
         view.destinations.some((candidate) => candidate.ref.kind === option.ref.kind && candidate.available)))
     : [];
@@ -60,6 +60,8 @@ export function ReviewBulkConfirm({
     ? chosenDestination
     : destinations.some((option) => option.ref.kind === "project-notes")
       ? "project-notes"
+    : destinations.some((option) => option.ref.kind === "qaqc-memory")
+      ? "qaqc-memory"
     : destinations.length === 1
       ? destinations[0].ref.kind
       : "";

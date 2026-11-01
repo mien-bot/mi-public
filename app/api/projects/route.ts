@@ -1,6 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { NextResponse } from "next/server";
 import { mirrorProjectKnowledge } from "@/lib/content";
+import { isDropboxContainerFolder } from "@/lib/content/dropboxPaths";
 import {
   createDropboxStructure,
   createNotionProjectPage,
@@ -55,7 +56,7 @@ function parseInput(body: Record<string, unknown> | null): ProjectCreationInput 
     || (projectType !== null && !isNotionProjectType(projectType))
     || scopes === null
     || (dropboxMode === "create" && !dropboxFolder)
-    || (dropboxMode === "link-existing" && !dropboxPath)
+    || (dropboxMode === "link-existing" && (!dropboxPath || isDropboxContainerFolder(dropboxPath)))
     || (body?.folders !== undefined && customFolders === null)
   ) {
     throw new ProjectCreationError(

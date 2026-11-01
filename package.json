@@ -1,6 +1,6 @@
 {
   "name": "mi-workspace",
-  "version": "0.4.9",
+  "version": "0.6.0",
   "productName": "Mi",
   "description": "Local-first project operations workspace",
   "author": "Mi contributors",
@@ -16,6 +16,9 @@
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
     "build:desktop": "node scripts/build-desktop.mjs",
+    "build:revit": "node scripts/build-revit.cjs",
+    "build:autocad": "node scripts/build-autocad.cjs",
+    "test:desktop:cad": "node scripts/verify-cad.cjs",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
     "validate-content": "tsx scripts/validate-content.ts",
@@ -100,6 +103,27 @@
       "main": "electron/main.js"
     },
     "win": {
+      "extraResources": [
+        {
+          "from": "integrations/revit/artifacts/2026",
+          "to": "revit/2026",
+          "filter": [
+            "Mi.Revit.dll",
+            "Mi.Revit.deps.json",
+            "payload.json"
+          ]
+        },
+        {
+          "from": "integrations/autocad/artifacts/2027",
+          "to": "autocad/2027",
+          "filter": [
+            "Mi.AutoCAD.dll",
+            "Mi.AutoCAD.deps.json",
+            "PackageContents.xml",
+            "payload.json"
+          ]
+        }
+      ],
       "icon": "assets/mi-icon.ico",
       "artifactName": "Mi-Setup-${version}-${arch}.${ext}",
       "target": [

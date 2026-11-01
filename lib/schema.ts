@@ -114,7 +114,7 @@ export const projectMetaSchema = z.object({
   team: z.array(teamMemberSchema).default([]),
   /**
    * Path to this project's real Dropbox folder, relative to the per-machine
-   * DROPBOX_ROOT env var (e.g. "1.00 PROJECTS/11_2828 S Example Ave").
+   * DROPBOX_ROOT env var (e.g. "Projects/11_2828 S Example Ave").
    * Optional — a project with no Dropbox folder yet just omits it. Never
    * assume/guess this mapping; it must be set explicitly by a human who
    * knows which real Dropbox folder is this project.
@@ -300,6 +300,8 @@ export const milestoneSchema = z.object({
   notion_event_id: z.string().nullable().default(null),
   /** Stable client-generated key used to make confirmed Notion retries idempotent. */
   sync_key: z.string().nullable().optional(),
+  /** A person's own ranking. When absent, the calendars derive a tier from the name. */
+  priority: z.enum(["critical", "high", "normal"]).optional(),
 });
 export type Milestone = z.infer<typeof milestoneSchema>;
 
@@ -396,6 +398,10 @@ export const projectPhaseSchema = z.object({
   planned_start_date: optionalDateOnlySchema,
   planned_end_date: optionalDateOnlySchema,
   paid: z.boolean().default(false),
+  /** How far through the phase the team reports being. Null until someone says. */
+  progress_percent: z.number().int().min(0).max(100).nullable().default(null),
+  /** The client approval that closes this phase. */
+  client_approved_date: optionalDateOnlySchema,
 }).superRefine((phase, context) => {
   if (
     phase.planned_start_date &&
@@ -410,6 +416,20 @@ export const projectPhaseSchema = z.object({
   }
 });
 export type ProjectPhase = z.infer<typeof projectPhaseSchema>;
+
+/** One line of a contract's payment schedule. Dates stay blank until they are actually known. */
+export const projectPaymentSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().trim().min(1),
+  amount: z.number().finite().nonnegative().nullable().default(null),
+  /** The contract's own wording for when this is due, such as "at permit submission". */
+  trigger: z.string().trim().default(""),
+  due_date: optionalDateOnlySchema,
+  invoiced_date: optionalDateOnlySchema,
+  paid_date: optionalDateOnlySchema,
+  phase_id: z.string().default(""),
+});
+export type ProjectPayment = z.infer<typeof projectPaymentSchema>;
 
 export const projectContactSchema = z.object({
   name: z.string().trim().default(""),
@@ -430,6 +450,11 @@ export const projectDetailsSchema = z.object({
   fee_notes: z.string().trim().default(""),
   contract_link_or_path: z.string().trim().default(""),
   phases: z.array(projectPhaseSchema).default([]),
+  contract_start_date: optionalDateOnlySchema,
+  contract_end_date: optionalDateOnlySchema,
+  /** The contract's own wording for its duration, such as "26 weeks from notice to proceed". */
+  contract_duration: z.string().trim().default(""),
+  payments: z.array(projectPaymentSchema).default([]),
 });
 export type ProjectDetails = z.infer<typeof projectDetailsSchema>;
 

@@ -34,28 +34,28 @@ describe("resolveProjectContentRoot", () => {
 
   it("resolves to <DROPBOX_ROOT>/<dropbox_path>/Mi/project when migrated and reachable", () => {
     const dropboxRoot = temporaryRoot();
-    const projectMiDir = path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "project");
+    const projectMiDir = path.join(dropboxRoot, "Projects", "Demo", "Mi", "project");
     fs.mkdirSync(projectMiDir, { recursive: true });
 
-    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "1.00 PROJECTS/Demo" });
+    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "Projects/Demo" });
     const result = resolveProjectContentRoot(meta, "demo", dropboxRoot);
     expect(result.shared).toBe(true);
     expect(result.dir).toBe(projectMiDir);
   });
 
   it("throws ContentRootUnavailableError when migrated but DROPBOX_ROOT is unset", () => {
-    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "1.00 PROJECTS/Demo" });
+    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "Projects/Demo" });
     expect(() => resolveProjectContentRoot(meta, "demo", null)).toThrow(ContentRootUnavailableError);
   });
 
   it("throws ContentRootUnavailableError when migrated but the shared folder hasn't synced/isn't reachable", () => {
     const dropboxRoot = temporaryRoot();
-    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "1.00 PROJECTS/Demo" });
+    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "Projects/Demo" });
     expect(() => resolveProjectContentRoot(meta, "demo", dropboxRoot)).toThrow(ContentRootUnavailableError);
   });
 
   it("never falls back to the local root when migrated and unreachable -- fails closed", () => {
-    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "1.00 PROJECTS/Demo" });
+    const meta = baseMeta({ content_location: "dropbox", dropbox_path: "Projects/Demo" });
     try {
       resolveProjectContentRoot(meta, "demo", null);
       expect.unreachable("should have thrown");

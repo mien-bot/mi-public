@@ -190,7 +190,11 @@ function createTerminalManager({
     for (const id of [...terminals.keys()]) kill(id);
   }
 
-  return { create, write, resize, kill, killAll };
+  function liveSessionId(rawSessionKey) {
+    return sessions.get(normalizeSessionKey(rawSessionKey)) ?? null;
+  }
+
+  return { create, write, resize, kill, killAll, liveSessionId };
 }
 
 module.exports = { appendReplayOutput, createTerminalManager, shellArgsFor };

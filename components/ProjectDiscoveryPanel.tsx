@@ -1,13 +1,13 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, type MouseEvent } from "react";
 import { useProjectDiscovery } from "./useProjectDiscovery";
 import { useProjectUpdates } from "./useProjectUpdates";
 import { ProjectHandoffComposer } from "./ProjectHandoffComposer";
 import { ProjectPdfSave } from "./ProjectPdfSave";
 import { PROJECT_CHAT_OPEN_EVENT } from "./projectChatUi";
 import { useDesktopPaneWindows } from "./workspacePanes";
-import type { ProjectHandoff } from "@/lib/content/projectDiscoveryTypes";
+import type { ProjectFile, ProjectHandoff } from "@/lib/content/projectDiscoveryTypes";
 
 export function ProjectDiscoveryPanel({ slug, mode = "overview" }: { slug: string; mode?: "overview" | "files" | "activity" }) {
   const { data, error, busy, refresh } = useProjectDiscovery(slug);
@@ -27,6 +27,21 @@ export function ProjectDiscoveryPanel({ slug, mode = "overview" }: { slug: strin
       onResult: (error: string | null) => setMessage(error || "New chat opened with the handoff in the message box. Review it and send when ready."),
     } }));
   }
+  /** Opens in the file's default app on the desktop; a browser keeps the plain link. */
+  async function openFile(event: MouseEvent<HTMLAnchorElement>, file: ProjectFile) {
+    const openLink = window.electronAPI?.terminal?.openLink;
+    if (!openLink) return;
+    event.preventDefault();
+    try {
+      const response = await fetch(`/api/projects/${encodeURIComponent(slug)}/files/open?source=${file.source}&path=${encodeURIComponent(file.path)}`);
+      const located = await response.json();
+      if (!response.ok) throw new Error(located.error);
+      await openLink(located.absolutePath);
+      setMessage("");
+    } catch (cause) {
+      setMessage(cause instanceof Error ? cause.message : "This file could not be opened.");
+    }
+  }
   const files = (data?.files ?? []).filter(f => (filter !== "pdf" || /\.pdf$/i.test(f.name)) && (filter !== "outputs" || f.output) && `${f.name} ${f.path}`.toLowerCase().includes(query.toLowerCase()));
   return <section className="space-y-4 rounded-xl border border-border bg-card p-4" aria-label="Project shared work">
     <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="font-medium">{mode === "files" ? "Project file catalog" : mode === "activity" ? "Activity & shared handoffs" : "Since your last review"}</h2><button disabled={busy} onClick={() => void refresh(true)} className="rounded border border-border px-3 py-1.5 text-sm disabled:opacity-50">{busy ? "Refreshing…" : "Refresh project files"}</button></div>
@@ -44,7 +59,7 @@ export function ProjectDiscoveryPanel({ slug, mode = "overview" }: { slug: strin
         <div className="flex items-center justify-between gap-2"><h3 className="text-sm font-medium">Latest project files</h3>{mode === "overview" && <Link className="text-sm text-link underline" href={`/projects/${slug}/files`}>All files</Link>}</div>
         {mode === "files" && <div className="flex flex-wrap gap-2"><input type="search" aria-label="Search project files" placeholder="Find a PDF, document, or folder…" value={query} onChange={e => setQuery(e.target.value)} className="min-w-0 flex-1 rounded border border-border bg-background p-2 text-sm" /><select aria-label="File category" value={filter} onChange={e => setFilter(e.target.value)} className="rounded border border-border bg-background p-2 text-sm"><option value="recent">Recent</option><option value="pdf">PDFs</option><option value="outputs">Agent outputs</option><option value="all">All files</option></select></div>}
         <ul className="divide-y divide-border">{files.slice(0, mode === "overview" ? 5 : filter === "recent" ? 30 : 1000).map(file => <li key={file.id} className="flex flex-wrap items-start justify-between gap-2 py-3">
-          <div className="min-w-0 flex-1"><a href={file.href} target="_blank" rel="noreferrer" className="break-all text-sm font-medium text-link underline">{file.name}</a><p className="break-all text-xs text-muted-foreground">{file.path}</p><p className="text-xs text-muted-foreground">{file.source === "dropbox" ? "Shared folder" : "Project records"} · {Math.max(1, Math.round(file.size / 1024))} KB · {new Date(file.modifiedAt).toLocaleDateString()}</p></div>
+          <div className="min-w-0 flex-1"><a href={file.href} target="_blank" rel="noreferrer" onClick={(event) => void openFile(event, file)} className="break-all text-sm font-medium text-link underline">{file.name}</a><p className="break-all text-xs text-muted-foreground">{file.path}</p><p className="text-xs text-muted-foreground">{file.source === "dropbox" ? "Shared folder" : "Project records"} · {Math.max(1, Math.round(file.size / 1024))} KB · {new Date(file.modifiedAt).toLocaleDateString()}</p></div>
           <button onClick={async () => { try { await navigator.clipboard.writeText(`${file.source}:${file.path}`); setMessage("Project-relative file reference copied."); } catch { setMessage(`Copy this reference: ${file.source}:${file.path}`); } }} className="rounded border border-border px-2 py-1 text-xs">Copy reference</button>
         </li>)}</ul>
         {files.length === 0 && <p className="text-sm text-muted-foreground">No matching files found in this scan. Save a PDF below or check the linked project folder.</p>}

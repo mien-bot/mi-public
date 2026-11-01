@@ -4,7 +4,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  project: { slug: "demo", meta: { dropbox_path: "1.00 PROJECTS/Demo", content_location: "local" } },
+  project: { slug: "demo", meta: { dropbox_path: "Projects/Demo", content_location: "local" } },
 }));
 
 vi.mock("./projects", () => ({ getProject: () => mocks.project }));
@@ -51,17 +51,17 @@ describe("confirmed Dropbox mirror destination", () => {
     const dropboxRoot = makeTempDir();
 
     expect(() =>
-      resolveConfirmedProjectDir(dropboxRoot, "1.00 PROJECTS/Missing"),
+      resolveConfirmedProjectDir(dropboxRoot, "Projects/Missing"),
     ).toThrow(/existing directory/);
-    expect(fs.existsSync(path.join(dropboxRoot, "1.00 PROJECTS", "Missing"))).toBe(false);
+    expect(fs.existsSync(path.join(dropboxRoot, "Projects", "Missing"))).toBe(false);
   });
 
   it("resolves an existing project folder inside Dropbox", () => {
     const dropboxRoot = makeTempDir();
-    const projectDir = path.join(dropboxRoot, "1.00 PROJECTS", "Demo");
+    const projectDir = path.join(dropboxRoot, "Projects", "Demo");
     fs.mkdirSync(projectDir, { recursive: true });
 
-    expect(resolveConfirmedProjectDir(dropboxRoot, "1.00 PROJECTS/Demo"))
+    expect(resolveConfirmedProjectDir(dropboxRoot, "Projects/Demo"))
       .toBe(fs.realpathSync.native(projectDir));
   });
 

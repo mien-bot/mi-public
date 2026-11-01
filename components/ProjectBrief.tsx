@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { scopeExcerpt } from "@/lib/projectSnapshot";
 
 export function ProjectBrief({ slug, scope, attention, nextMilestone, decisions, knowledge }: {
   slug: string;
@@ -8,15 +9,19 @@ export function ProjectBrief({ slug, scope, attention, nextMilestone, decisions,
   decisions: Array<{ id: string; title: string; status: string }>;
   knowledge: Array<{ id: string; title: string }>;
 }) {
+  const excerpt = scopeExcerpt(scope);
   const base = `/projects/${slug}`;
-  return <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label="Current project brief">
-    <h2 className="font-medium">Current project brief</h2>
-    <p className="text-sm">{scope || "Project scope has not been recorded."} <Link href={`${base}/details`} className="text-link underline">Project details</Link></p>
-    <p className="text-xs text-muted-foreground">From saved project records. Follow each source to review the details; missing records do not mean work has not happened.</p>
+  return <section className="space-y-3 rounded-xl border border-border bg-card p-4" aria-label="Project in a minute">
+    <h2 className="font-medium">Project in a minute</h2>
+    <p className="text-sm">{excerpt.text || "Start by recording what this project will do."}</p>
+    {excerpt.shortened && <details className="text-sm"><summary className="cursor-pointer text-link">Read full scope</summary><p className="mt-2 whitespace-pre-wrap">{scope}</p></details>}
+    <Link href={`${base}/details`} className="inline-block text-sm text-link underline">Project details</Link>
+    <p className="text-xs text-muted-foreground">From saved records. Open a source for the full story.</p>
     <div className="grid gap-4 md:grid-cols-3">
       <div>
         <h3 className="text-sm font-medium">Needs your attention</h3>
-        <ul className="mt-2 space-y-2 text-sm">{attention.slice(0, 3).map(reason => <li key={reason.code}><Link className="text-link underline" href={reason.href || `${base}/schedule`}>{reason.label}</Link></li>)}</ul>
+        <ul className="mt-2 space-y-2 text-sm">{attention.slice(0, 2).map(reason => <li key={reason.code}><Link className="text-link underline" href={reason.href || `${base}/schedule`}>{reason.label}</Link></li>)}</ul>
+        {attention.length > 2 && <p className="mt-2 text-xs text-muted-foreground">+{attention.length - 2} more below in All attention flags</p>}
         {attention.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No attention flags in the saved records.</p>}
         <Link className="mt-2 block text-sm text-link underline" href={`/review?workspace=${encodeURIComponent(`project/${slug}`)}`}>Review project inbox</Link>
       </div>
@@ -29,11 +34,12 @@ export function ProjectBrief({ slug, scope, attention, nextMilestone, decisions,
       <div>
         <h3 className="text-sm font-medium">Decisions &amp; knowledge</h3>
         <ul className="mt-2 space-y-2 text-sm">
-          {decisions.slice(0, 2).map(decision => <li key={decision.id}><Link href={`${base}/decisions`} className="text-link underline">{decision.title} · {decision.status}</Link></li>)}
-          {knowledge.slice(0, 2).map(note => <li key={note.id}><Link href={`${base}/knowledge`} className="text-link underline">{note.title}</Link></li>)}
+          {decisions.slice(0, 1).map(decision => <li key={decision.id}><Link href={`${base}/decisions`} className="text-link underline">{decision.title} · {decision.status}</Link></li>)}
+          {knowledge.slice(0, 1).map(note => <li key={note.id}><Link href={`${base}/knowledge`} className="text-link underline">{note.title}</Link></li>)}
         </ul>
         {decisions.length === 0 && knowledge.length === 0 && <p className="mt-2 text-sm text-muted-foreground">No decisions or knowledge entries recorded yet.</p>}
-        <Link href={`${base}/knowledge`} className="mt-2 block text-sm text-link underline">All project knowledge</Link>
+        <Link href={`${base}/knowledge`} className="mt-2 block text-sm text-link underline">Knowledge ({knowledge.length})</Link>
+        <Link href={`${base}/decisions`} className="mt-2 block text-sm text-link underline">Decisions ({decisions.length})</Link>
       </div>
     </div>
   </section>;

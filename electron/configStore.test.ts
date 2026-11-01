@@ -115,7 +115,7 @@ describe("per-user configuration", () => {
     const store = createConfigStore({ userDataPath: root, secureStorage: secureStorage() });
     expect(store.initialize().sharedDataRootEnabled).toBe(false);
 
-    const pathOnly = store.updateSettings({ dropboxFirmDataPath: "7.00 Mi Data" });
+    const pathOnly = store.updateSettings({ dropboxFirmDataPath: "Mi Data" });
     expect(pathOnly.sharedDataRootEnabled).toBe(false);
 
     const enabled = store.updateSettings({ sharedDataRootEnabled: true });

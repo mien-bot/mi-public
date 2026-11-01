@@ -67,7 +67,7 @@ afterEach(() => {
 
 beforeEach(() => {
   dropboxRoot = temporaryRoot();
-  fs.mkdirSync(path.join(dropboxRoot, "1.00 PROJECTS"), { recursive: true });
+  fs.mkdirSync(path.join(dropboxRoot, "Projects"), { recursive: true });
   projectsDir = path.join(temporaryRoot(), "projects");
   repoRoot = temporaryRoot();
   mocks.getProjectSlugs.mockReturnValue([]);
@@ -86,7 +86,7 @@ describe("POST /api/projects", () => {
     ]);
     expect(mocks.createStudioProject).not.toHaveBeenCalled();
     expect(mocks.scaffoldProject).not.toHaveBeenCalled();
-    expect(fs.existsSync(path.join(dropboxRoot, "1.00 PROJECTS", "12_Demo Project"))).toBe(false);
+    expect(fs.existsSync(path.join(dropboxRoot, "Projects", "12_Demo Project"))).toBe(false);
   });
 
   it("creates real Dropbox folders (including an empty Mi/), one Notion page, and the local scaffold on confirm", async () => {
@@ -99,7 +99,7 @@ describe("POST /api/projects", () => {
     const data = await response.json();
     expect(data.slug).toBe("demo-project");
 
-    const target = path.join(dropboxRoot, "1.00 PROJECTS", "12_Demo Project");
+    const target = path.join(dropboxRoot, "Projects", "12_Demo Project");
     expect(fs.existsSync(path.join(target, "Mi"))).toBe(true);
     expect(fs.existsSync(path.join(target, "01_Admin"))).toBe(true);
     expect(fs.existsSync(path.join(target, "07_Specs"))).toBe(true);
@@ -111,7 +111,7 @@ describe("POST /api/projects", () => {
     expect(mocks.createStudioProject).toHaveBeenCalledTimes(1);
     expect(mocks.scaffoldProject).toHaveBeenCalledWith("demo-project", "Demo Project", expect.objectContaining({
       notionPageId: "notion-page-id",
-      dropboxPath: "1.00 PROJECTS/12_Demo Project",
+      dropboxPath: "Projects/12_Demo Project",
     }));
     expect(mocks.mirrorProjectKnowledge).toHaveBeenCalledWith("demo-project");
   });
@@ -123,18 +123,18 @@ describe("POST /api/projects", () => {
 
     const requestId = "22222222-2222-2222-2222-222222222222";
     await POST(request({ ...payload, confirmed: true, clientRequestId: requestId, previewPlan: preview.plan }));
-    const target = path.join(dropboxRoot, "1.00 PROJECTS", "12_Demo Project");
+    const target = path.join(dropboxRoot, "Projects", "12_Demo Project");
     expect(fs.existsSync(path.join(target, "08_Renderings"))).toBe(true);
     expect(fs.existsSync(path.join(target, "02_Pre-Design"))).toBe(false);
   });
 
   it("links an existing selected Dropbox folder without adding or changing its contents", async () => {
-    const existing = path.join(dropboxRoot, "1.00 PROJECTS", "09_Existing Project");
+    const existing = path.join(dropboxRoot, "Projects", "09_Existing Project");
     fs.mkdirSync(existing, { recursive: true });
     fs.writeFileSync(path.join(existing, "keep.txt"), "unchanged", "utf8");
     const payload = basePayload({
       dropboxMode: "link-existing",
-      dropboxPath: "1.00 PROJECTS/09_Existing Project",
+      dropboxPath: "Projects/09_Existing Project",
       dropboxFolder: "",
     });
 
@@ -155,7 +155,7 @@ describe("POST /api/projects", () => {
     expect(mocks.scaffoldProject).toHaveBeenCalledWith(
       "demo-project",
       "Demo Project",
-      expect.objectContaining({ dropboxPath: "1.00 PROJECTS/09_Existing Project" }),
+      expect.objectContaining({ dropboxPath: "Projects/09_Existing Project" }),
     );
   });
 
@@ -163,7 +163,7 @@ describe("POST /api/projects", () => {
     const response = await POST(request({
       ...basePayload(),
       dropboxMode: "link-existing",
-      dropboxPath: "1.00 PROJECTS/Missing",
+      dropboxPath: "Projects/Missing",
       confirmed: false,
     }));
     expect(response.status).toBe(409);
@@ -176,7 +176,7 @@ describe("POST /api/projects", () => {
 
   it("rejects a confirm whose echoed previewPlan differs from what the server would build", async () => {
     const preview = await (await POST(request({ ...basePayload(), confirmed: false }))).json();
-    const tampered = { ...preview.plan, dropbox: { ...preview.plan.dropbox, relativePath: "1.00 PROJECTS/Somewhere Else" } };
+    const tampered = { ...preview.plan, dropbox: { ...preview.plan.dropbox, relativePath: "Projects/Somewhere Else" } };
     const response = await POST(request({
       ...basePayload(), confirmed: true, clientRequestId: "33333333-3333-3333-3333-333333333333", previewPlan: tampered,
     }));
@@ -192,7 +192,7 @@ describe("POST /api/projects", () => {
       ...basePayload(), confirmed: true, clientRequestId: requestId, previewPlan: preview.plan,
     }));
     expect(failed.status).toBe(502);
-    const target = path.join(dropboxRoot, "1.00 PROJECTS", "12_Demo Project");
+    const target = path.join(dropboxRoot, "Projects", "12_Demo Project");
     expect(fs.existsSync(path.join(target, "01_Admin"))).toBe(true); // Dropbox side already happened
 
     // Retrying the same request must not call Notion again -- it must block for manual review.

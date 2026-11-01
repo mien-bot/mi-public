@@ -2,7 +2,9 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { Lead } from "@/lib/schema";
+import { LEAD_DROPBOX_SUBFOLDERS } from "@/lib/leadDropboxStructure";
 
 /**
  * Matches the YY_MMDD_ convention already confirmed against real Dropbox/Notion
@@ -76,8 +78,15 @@ export function LeadForm({
   onCancel?: () => void;
 }) {
   const router = useRouter();
-  const [leadSlug, setLeadSlug] = useState(slug ?? "");
+  const [slugOverride, setSlugOverride] = useState<string | null>(slug ?? null);
   const [lead, setLead] = useState<Lead>(initialLead ?? EMPTY_LEAD);
+  const leadSlug = slugOverride ?? lead.name
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .slice(0, 64)
+    .replace(/^-+|-+$/g, "");
   const [estimatedValue, setEstimatedValue] = useState(
     lead.estimated_value === null ? "" : String(lead.estimated_value),
   );
@@ -85,6 +94,7 @@ export function LeadForm({
   const [conflict, setConflict] = useState(false);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
+  const [savedLeadSlug, setSavedLeadSlug] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const [dropboxAction, setDropboxAction] = useState<"create" | "link-existing" | "none">(
     mode === "create" ? "create" : initialLead?.dropbox_path ? "link-existing" : "none",
@@ -115,6 +125,7 @@ export function LeadForm({
   }
 
   async function performSave(overrideExpectedHash?: "skip-check", dropboxConfirmed = false) {
+    if (savedLeadSlug) return;
     setMessage("");
     setConflict(false);
     const convertedProject = lead.converted_project_slug?.trim() || null;
@@ -189,7 +200,13 @@ export function LeadForm({
         : "";
     if (mode === "create" && result.slug) {
       setConfirmingDropbox(false);
-      router.push(result.dropboxError ? `/leads/${result.slug}/dropbox` : `/leads/${result.slug}`);
+      if (result.dropboxError) {
+        setSavedLeadSlug(result.slug);
+        setSaving(false);
+        setMessage(`The lead was saved, but Dropbox folder setup did not finish: ${result.dropboxError}`);
+      } else {
+        router.push(`/leads/${result.slug}`);
+      }
     } else {
       setMessage(`Saved.${notionNote}`);
       setExpectedHash(result.hash ?? null);
@@ -210,12 +227,14 @@ export function LeadForm({
           <Field label="Lead slug">
             <input
               value={leadSlug}
-              onChange={(event) => setLeadSlug(event.target.value)}
+              onChange={(event) => setSlugOverride(event.target.value || null)}
               pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
-              placeholder="lowercase-path-safe-slug"
+              maxLength={64}
+              placeholder="Generated from the name / address"
               required
               className={inputClass}
             />
+            <span className="text-xs text-muted-foreground">Generated from the name / address. Edit to customize; clear to generate again.</span>
           </Field>
         )}
         <Field label="Name">
@@ -364,7 +383,7 @@ export function LeadForm({
         </div>}
         <span className="text-xs text-muted-foreground">
           {dropboxAction === "create"
-            ? <>After confirmation, Mi creates contracts, owner-supplied, site-photos, correspondence, and Mi subfolders at this exact relative path.</>
+            ? <>After confirmation, Mi creates the architectural folder structure at this exact relative path: {LEAD_DROPBOX_SUBFOLDERS.join(", ")}.</>
             : dropboxAction === "link-existing"
               ? <>Choose the exact existing folder. Saving the link does not reorganize or overwrite anything inside it.</>
               : <>You can link or create a Dropbox folder later from this lead.</>}
@@ -399,7 +418,8 @@ export function LeadForm({
         Converted project links are never inferred. Choose an exact existing local project slug and
         provide its real conversion date together.
       </p>
-      {message && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
+      {message && !confirmingDropbox && <p role="status" className="text-sm text-muted-foreground">{message}</p>}
+      {savedLeadSlug && <Link href={`/leads/${savedLeadSlug}/dropbox`} className="text-sm text-link underline">Open the saved lead to finish Dropbox folder setup</Link>}
       {confirmingDropbox && lead.dropbox_path && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
           <div role="dialog" aria-modal="true" className="w-full max-w-lg rounded-lg border border-border bg-card p-5">
@@ -408,11 +428,12 @@ export function LeadForm({
             </h2>
             <p className="mt-2 text-sm text-muted-foreground">
               {dropboxAction === "create" ? (
-                <>Create <code>{lead.dropbox_path}</code> plus contracts, owner-supplied, site-photos, correspondence, and Mi subfolders, then create this lead.</>
+                <>Create <code>{lead.dropbox_path}</code> plus {LEAD_DROPBOX_SUBFOLDERS.join(", ")} subfolders, then create this lead.</>
               ) : (
                 <>Link this lead to the existing folder <code>{lead.dropbox_path}</code>. Mi will verify it and will not change its contents.</>
               )}
             </p>
+            {message && <p role="alert" className="mt-3 text-sm text-status-danger-foreground">{message}</p>}
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" disabled={saving} onClick={() => setConfirmingDropbox(false)} className="rounded-md border border-border px-3 py-2 text-sm">Cancel</button>
               <button type="button" disabled={saving} onClick={() => void performSave(undefined, true)} className="rounded-md bg-foreground px-3 py-2 text-sm text-background disabled:opacity-50">
@@ -435,7 +456,7 @@ export function LeadForm({
       <div className="flex gap-2">
         <button
           type="submit"
-          disabled={saving}
+          disabled={saving || Boolean(savedLeadSlug)}
           className="rounded-md bg-foreground px-4 py-2 text-sm text-background disabled:opacity-50"
         >
           {saving ? "Saving…" : "Save"}

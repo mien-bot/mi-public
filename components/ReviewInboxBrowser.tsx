@@ -3,6 +3,7 @@
 import { useMemo, useState, useEffect, useSyncExternalStore, type SetStateAction } from "react";
 import { loadMiProfile, PROFILE_CHANGED_EVENT } from "./profilePreferences";
 import { useRouter } from "next/navigation";
+import { ReviewInboxDelete } from "./ReviewInboxDelete";
 import { ReviewBatchConfirm } from "@/components/ReviewBatchConfirm";
 import { reviewSelectionId } from "./reviewBatchSelection";
 import { ReviewCardPanel } from "@/components/ReviewCardPanel";
@@ -79,6 +80,7 @@ export function ReviewInboxBrowser({ views, workspaces, initialWorkspace = "" }:
   const router = useRouter();
   const name = useSyncExternalStore(subscribeProfile, reviewerName, () => "");
   const [filters, updateFilters] = useState<ReviewFilterState>({ ...DEFAULT_REVIEW_FILTERS, workspace: initialWorkspace });
+  const [deleteResult, setDeleteResult] = useState("");
   const [selected, setSelected] = useState<string[]>([]);
   function setFilters(next: SetStateAction<ReviewFilterState>) {
     setSelected([]);
@@ -112,10 +114,11 @@ export function ReviewInboxBrowser({ views, workspaces, initialWorkspace = "" }:
 
   const visibleIds = new Set(visible.map((item) => item.id));
   const selectedViews = selected.filter((id) => visibleIds.has(id)).map((id) => byId.get(id))
-    .filter((view): view is ReviewCardView => Boolean(view) && view?.card.status === "pending");
+    .filter((view): view is ReviewCardView => Boolean(view) && (view?.card.status === "pending" || view?.card.status === "failed"));
 
   const pendingVisible = visible.filter((item) => item.status === "pending");
-  const nextBatch = pendingVisible.slice(0, 100);
+  const selectableVisible = visible.filter(item => item.status === "pending" || item.status === "failed");
+  const nextBatch = selectableVisible.slice(0, 100);
   const allPendingSelected = nextBatch.length > 0
     && nextBatch.every((item) => selected.includes(item.id));
 
@@ -223,7 +226,7 @@ export function ReviewInboxBrowser({ views, workspaces, initialWorkspace = "" }:
           </button>
         </div>
 
-        {pendingVisible.length > 0 && (
+        {selectableVisible.length > 0 && (
           // Scoped to what the filters are showing, never to the whole mailbox: "select all"
           // has to mean the cards on screen, or it selects work nobody just looked at.
           <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-3">
@@ -234,21 +237,20 @@ export function ReviewInboxBrowser({ views, workspaces, initialWorkspace = "" }:
             >
               {allPendingSelected
                 ? "Deselect all"
-                : pendingVisible.length > 100 ? `Select first 100 of ${pendingVisible.length} pending shown` : `Select all ${pendingVisible.length} pending shown`}
+                : selectableVisible.length > 100 ? `Select first 100 of ${selectableVisible.length}` : `Select all ${selectableVisible.length}`}
             </button>
             <span className="text-xs text-muted-foreground">
-              Bulk confirmation still previews every write before it happens.
+              Select items to save or delete.
             </span>
           </div>
         )}
       </section>
 
-      {pendingVisible.length > 0 && <section aria-label="Select by workspace" className="rounded-lg border border-border bg-card p-4">
-        <h2 className="text-sm font-medium">Choose projects to review together</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Select a whole workspace or individual items below. Your sort order is remembered on this device.</p>
+      {selectableVisible.length > 0 && <section aria-label="Select by workspace" className="rounded-lg border border-border bg-card p-4">
+        <h2 className="text-sm font-medium">Select by workspace</h2>
         <div className="mt-3 flex flex-wrap gap-2">
           {workspaces.map(workspace => {
-            const ids = pendingVisible.filter(item => `${item.workspaceKind}/${item.workspaceSlug}` === workspace.key).map(item => item.id);
+            const ids = selectableVisible.filter(item => `${item.workspaceKind}/${item.workspaceSlug}` === workspace.key).map(item => item.id);
             if (!ids.length) return null;
             const checked = ids.every(id => selected.includes(id));
             return <label key={workspace.key} className="flex cursor-pointer items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm">
@@ -260,9 +262,16 @@ export function ReviewInboxBrowser({ views, workspaces, initialWorkspace = "" }:
         </div>
       </section>}
 
+      {deleteResult && <p role="status" className="text-sm">{deleteResult}</p>}
+      {selectedViews.length > 0 && <ReviewInboxDelete
+        key={JSON.stringify(selectedViews.map(view => [reviewSelectionId(view), view.card]))}
+        views={selectedViews}
+        onDeleted={(message) => { setDeleteResult(message); setSelected([]); router.refresh(); }}
+      />}
       <ReviewBatchConfirm
-        selectedViews={selectedViews}
+        selectedViews={selectedViews.filter(view => view.card.status === "pending")}
         onClearSelection={() => setSelected([])}
+        onDeselect={(ids) => setSelected(current => current.filter(id => !ids.includes(id)))}
         onApplied={() => router.refresh()}
       />
 
@@ -280,7 +289,7 @@ export function ReviewInboxBrowser({ views, workspaces, initialWorkspace = "" }:
             if (!view) return null;
             return (
               <li key={item.id} className="flex items-start gap-3">
-                {view.card.status === "pending" && (
+                {(view.card.status === "pending" || view.card.status === "failed") && (
                   <input
                     type="checkbox"
                     checked={selected.includes(item.id)}

@@ -9,6 +9,8 @@ import { DeletePermitQaqcButton } from "@/components/DeletePermitQaqcButton";
 import { PermitQaqcForm } from "@/components/PermitQaqcForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getPermitQaqcDropboxDir, getPermitQaqcEngagementWithHash, getPermitQaqcSlugs, listDropboxTree } from "@/lib/content";
+import { permitQaqcMemoryPath } from "@/lib/content/permitQaqc";
+import { readMemoryFile } from "@/lib/content/projectWorkspace";
 import { listPermitQaqcCorrespondence } from "@/lib/permitQaqcEmail/listCorrespondence";
 
 export function generateStaticParams() {
@@ -21,6 +23,7 @@ export default async function PermitQaqcDetailPage({ params }: { params: Promise
   const { engagement, hash } = getPermitQaqcEngagementWithHash(slug);
   const dropboxDir = getPermitQaqcDropboxDir(engagement);
   const reviewSummary = readWorkspaceReviewSummary("permit-qaqc", slug);
+  const knowledge = readMemoryFile(permitQaqcMemoryPath(slug));
   const correspondence = dropboxDir
     ? await listPermitQaqcCorrespondence(dropboxDir, listDropboxTree(dropboxDir))
     : null;
@@ -53,6 +56,21 @@ export default async function PermitQaqcDetailPage({ params }: { params: Promise
       </section>
 
       <PendingReviewPanel summary={reviewSummary} />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="font-medium">QA/QC knowledge</h2>
+        {!knowledge && (
+          <p className="text-sm text-muted-foreground">
+            Findings saved from the review inbox appear here.
+          </p>
+        )}
+        {knowledge?.sections.map((section, index) => (
+          <details key={`${section.title}-${index}`} className="rounded-md border border-border p-3 text-sm">
+            <summary className="cursor-pointer font-medium">{section.title}</summary>
+            <p className="mt-2 whitespace-pre-wrap break-words text-muted-foreground">{section.body}</p>
+          </details>
+        ))}
+      </section>
 
       <WorkspaceAnalysisPanel
         kind="permit-qaqc"

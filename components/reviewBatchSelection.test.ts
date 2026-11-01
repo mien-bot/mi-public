@@ -14,4 +14,11 @@ describe("batch selection identity", () => {
   it("only offers destinations that every item in the group can reach", () => {
     expect(groupReviewSelection([view("alpha"), view("alpha", false)])[0].destinations).toEqual([]);
   });
+  it("names the item that blanked a group, and why", () => {
+    const blocked = view("alpha", false);
+    blocked.destinations[0].unavailableReason = "Notes are full.";
+    const [group] = groupReviewSelection([view("alpha"), blocked]);
+    expect(group.unsavable).toEqual([blocked]);
+    expect(group.reasons).toEqual(["Notes are full."]);
+  });
 });

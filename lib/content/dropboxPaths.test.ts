@@ -9,10 +9,10 @@ describe("Dropbox project folder containment", () => {
   const root = path.resolve("C:/Dropbox/STUDIO");
 
   it("persists a normalized relative path", () => {
-    expect(normalizeDropboxSelection(root, path.join(root, "1.00 PROJECTS", "Demo")))
-      .toBe("1.00 PROJECTS/Demo");
-    expect(normalizeDropboxRelativePath(root, "1.00 PROJECTS\\Demo"))
-      .toBe("1.00 PROJECTS/Demo");
+    expect(normalizeDropboxSelection(root, path.join(root, "Projects", "Demo")))
+      .toBe("Projects/Demo");
+    expect(normalizeDropboxRelativePath(root, "Projects\\Demo"))
+      .toBe("Projects/Demo");
   });
 
   it("rejects the root, absolute paths, and traversal", () => {

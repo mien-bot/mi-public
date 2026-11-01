@@ -32,6 +32,7 @@ const mocks = vi.hoisted(() => {
       memoryAppends.push({ slug, ...note });
       return `projects/${slug}/memory/notes.md`;
     }),
+    appendMemoryNoteFile: vi.fn((file: string) => file),
     getMeetingNotes: vi.fn((slug: string) => existingMeetings[slug] ?? []),
     writeMeetingNote: vi.fn((slug: string, meeting: Record<string, unknown>) => {
       meetingWrites.push({ slug, meeting });
@@ -59,6 +60,7 @@ vi.mock("./projects", () => ({ getProjectSlugs: () => mocks.projectSlugs }));
 vi.mock("./permitQaqc", () => ({
   getPermitQaqcEngagement: mocks.getPermitQaqcEngagement,
   getPermitQaqcEngagementWithHash: mocks.getPermitQaqcEngagementWithHash,
+  permitQaqcMemoryPath: (slug: string) => `permit-qaqc/${slug}/memory/notes.md`,
 }));
 vi.mock("./permitQaqcMutations", () => ({
   updatePermitQaqcEngagement: mocks.updatePermitQaqcEngagement,
@@ -66,6 +68,7 @@ vi.mock("./permitQaqcMutations", () => ({
 vi.mock("./projectWorkspace", () => ({
   getProjectMemory: mocks.getProjectMemory,
   appendProjectMemoryNote: mocks.appendProjectMemoryNote,
+  appendMemoryNoteFile: mocks.appendMemoryNoteFile,
   getMeetingNotes: mocks.getMeetingNotes,
   writeMeetingNote: mocks.writeMeetingNote,
 }));
@@ -569,7 +572,7 @@ describe("permit QAQC destinations", () => {
 
   it("offers Engagement Notes instead of the no-destination placeholder", () => {
     const options = describeDestinations("permit-qaqc", QAQC_SLUG, qaqcCard());
-    expect(options.map((option) => option.ref.kind)).toEqual(["qaqc-notes"]);
+    expect(options.map((option) => option.ref.kind)).toEqual(["qaqc-notes", "qaqc-memory"]);
     expect(options[0].available).toBe(true);
     expect(options[0].record).toBe(NOTES);
     expect(options[0].label).toBe("Confirm and add to Engagement Notes");
@@ -601,6 +604,44 @@ describe("permit QAQC destinations", () => {
     const options = describeDestinations("permit-qaqc", QAQC_SLUG, qaqcCard());
     expect(options[0].available).toBe(false);
     expect(options[0].unavailableReason).toContain("20,000-character limit");
+  });
+
+  it("keeps QA/QC knowledge available when Engagement Notes are full", () => {
+    mocks.engagements[QAQC_SLUG] = engagement({ notes: "x".repeat(19_990) });
+    const option = describeDestinations("permit-qaqc", QAQC_SLUG, qaqcCard())
+      .find((candidate) => candidate.ref.kind === "qaqc-memory");
+    expect(option?.available).toBe(true);
+    const outcome = applyReviewCardToDestination({
+      kind: "permit-qaqc", slug: QAQC_SLUG, card: qaqcCard(), destinationKind: "qaqc-memory", reviewedBy: "Example User",
+    });
+    expect(outcome.record).toBe(`permit-qaqc/${QAQC_SLUG}/memory/notes.md`);
+    expect(mocks.appendMemoryNoteFile).toHaveBeenCalledWith(
+      `permit-qaqc/${QAQC_SLUG}/memory/notes.md`,
+      expect.objectContaining({ entry: expect.stringContaining("Z.01 is empty") }),
+    );
+  });
+
+  it("refuses at preview when cards fit alone but not together", () => {
+    mocks.engagements[QAQC_SLUG] = engagement({ notes: "x".repeat(19_000) });
+    const filler = "y".repeat(600);
+    const cards = ["one", "two"].map((id) => qaqcCard({ id, original: { ...qaqcCard().original!, body: filler } }));
+    const plan = planBulkApply({ kind: "permit-qaqc", slug: QAQC_SLUG, cards, destinationKind: "qaqc-notes" });
+    expect(plan.allowed).toBe(false);
+    expect(plan.blockers.join(" ")).toContain("Together these items");
+  });
+
+  it("gives a batch one clean sentence without changing what would be saved", () => {
+    const plan = planBulkApply({ kind: "permit-qaqc", slug: QAQC_SLUG, cards: [qaqcCard()], destinationKind: "qaqc-memory" });
+    expect(plan.effects[0].excerpt).toBe("The stair decision changes the plan set.");
+    expect(plan.effects[0].destination).toBe("QA/QC knowledge");
+    expect(plan.effects[0].proposed).toContain("Imported from the Mi review inbox");
+  });
+
+  it("requires a folder choice before a folder destination can be planned", () => {
+    mocks.engagements[QAQC_SLUG] = engagement({ dropbox_path: "Projects/7001" });
+    const plan = planBulkApply({ kind: "permit-qaqc", slug: QAQC_SLUG, cards: [qaqcCard()], destinationKind: "workspace-folder" });
+    expect(plan.allowed).toBe(false);
+    expect(plan.blockers).toContain("Choose a folder before saving.");
   });
 
   it("refuses to write engagement notes from a workspace that has none", () => {

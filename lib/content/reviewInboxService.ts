@@ -411,6 +411,7 @@ export function confirmReviewCard(input: {
   cardId: string;
   destinationKind: ReviewDestinationKind;
   reviewedBy: string;
+  folder?: string;
   now?: () => Date;
 }): ReviewActionResult {
   const location = requireLocation(input.kind, input.slug);
@@ -425,6 +426,7 @@ export function confirmReviewCard(input: {
       card,
       destinationKind: input.destinationKind,
       reviewedBy: input.reviewedBy,
+      folder: input.folder,
       now: input.now,
     });
     applied = outcome;
@@ -432,7 +434,7 @@ export function confirmReviewCard(input: {
       status: "applied",
       reviewedAt: at,
       reviewedBy: input.reviewedBy,
-      destination: describeDestinations(input.kind, input.slug, card)
+      destination: describeDestinations(input.kind, input.slug, card, { folder: input.folder })
         .find((option) => option.ref.kind === input.destinationKind)?.ref ?? null,
       result: outcome.result,
       failure: null,
@@ -648,6 +650,7 @@ export function previewBulkApply(input: {
   slug: string;
   cardIds: string[];
   destinationKind: ReviewDestinationKind;
+  folder?: string;
 }): BulkApplyPlan {
   const location = requireLocation(input.kind, input.slug);
   const cards = readReviewCardsIn(location);
@@ -662,6 +665,7 @@ export function previewBulkApply(input: {
     slug: input.slug,
     cards: selected,
     destinationKind: input.destinationKind,
+    folder: input.folder,
   });
 }
 

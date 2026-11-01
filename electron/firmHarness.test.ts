@@ -10,13 +10,13 @@ function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "mi-firm-harness-"));
   roots.push(root);
   const dropboxRoot = path.join(root, "STUDIO Dropbox");
-  const firmRoot = path.join(dropboxRoot, "7.00 Mi Data");
+  const firmRoot = path.join(dropboxRoot, "Mi Data");
   fs.mkdirSync(firmRoot, { recursive: true });
   const templatePath = path.join(root, "firm-common-rules.md");
   fs.writeFileSync(templatePath, "Canonical firm-wide rule.\nRead-only planning copilot.\n", "utf8");
   const options = {
     dropboxRoot,
-    dropboxFirmDataPath: "7.00 Mi Data",
+    dropboxFirmDataPath: "Mi Data",
     templatePath,
     synchronizedAt: "2026-07-27T12:00:00.000Z",
   };

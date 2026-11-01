@@ -9,13 +9,13 @@ describe("installed project launch containment", () => {
   it("uses the project Mi folder and rejects traversal", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "mi-runtime-"));
     try {
-      const workspace = path.join(root, "1.00 PROJECTS", "Demo", "Mi");
+      const workspace = path.join(root, "Projects", "Demo", "Mi");
       fs.mkdirSync(workspace, { recursive: true });
       fs.writeFileSync(path.join(workspace, "AGENTS.md"), "rules");
       fs.writeFileSync(path.join(workspace, "CLAUDE.md"), "rules");
       expect(resolveInstalledProjectWorkspace({
         dropboxRoot: root,
-        dropboxPath: "1.00 PROJECTS/Demo",
+        dropboxPath: "Projects/Demo",
       })).toBe(fs.realpathSync(workspace));
       expect(() => resolveInstalledProjectWorkspace({
         dropboxRoot: root,
@@ -25,10 +25,10 @@ describe("installed project launch containment", () => {
         dropboxRoot: root,
         dropboxPath: "",
       })).toThrow(/Confirm this project's Dropbox folder/);
-      fs.mkdirSync(path.join(root, "1.00 PROJECTS", "No Harness"));
+      fs.mkdirSync(path.join(root, "Projects", "No Harness"));
       expect(() => resolveInstalledProjectWorkspace({
         dropboxRoot: root,
-        dropboxPath: "1.00 PROJECTS/No Harness",
+        dropboxPath: "Projects/No Harness",
       })).toThrow(/Repair\/Refresh Agent Workspace/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });
@@ -38,7 +38,7 @@ describe("installed project launch containment", () => {
   it("rejects a Mi junction that resolves outside the confirmed project folder", () => {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "mi-runtime-junction-"));
     try {
-      const projectRoot = path.join(root, "1.00 PROJECTS", "Demo");
+      const projectRoot = path.join(root, "Projects", "Demo");
       const outside = path.join(root, "outside");
       fs.mkdirSync(projectRoot, { recursive: true });
       fs.mkdirSync(outside);
@@ -48,7 +48,7 @@ describe("installed project launch containment", () => {
 
       expect(() => resolveInstalledProjectWorkspace({
         dropboxRoot: root,
-        dropboxPath: "1.00 PROJECTS/Demo",
+        dropboxPath: "Projects/Demo",
       })).toThrow(/workspace escapes/);
     } finally {
       fs.rmSync(root, { recursive: true, force: true });

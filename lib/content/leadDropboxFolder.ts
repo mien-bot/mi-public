@@ -1,18 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { LEAD_DROPBOX_SUBFOLDERS } from "../leadDropboxStructure";
 import {
   assertNoSymlinkOrReparsePoint,
   isPathInside,
   normalizeSafeRelativePath,
 } from "./leadLibraryPathSafety";
 
-export const LEAD_DROPBOX_SUBFOLDERS = [
-  "contracts",
-  "owner-supplied",
-  "site-photos",
-  "correspondence",
-  "Mi",
-] as const;
+export { LEAD_DROPBOX_SUBFOLDERS } from "../leadDropboxStructure";
 
 export type LeadDropboxAction = "create" | "link-existing";
 
@@ -55,6 +50,16 @@ export function previewLeadDropboxFolder(
   }
   if (action === "create" && exists && !options.allowExistingRoot) {
     throw new Error(`Dropbox folder already exists: ${normalized}. Choose “link existing” instead.`);
+  }
+  if (action === "create") {
+    // Check every child before any write, including recovery into a partially created folder.
+    for (const folder of LEAD_DROPBOX_SUBFOLDERS) {
+      assertNoSymlinkOrReparsePoint(realRoot, `${normalized}/${folder}`);
+      const child = path.join(target, folder);
+      if (fs.existsSync(child) && !fs.statSync(child).isDirectory()) {
+        throw new Error(`A file blocks the required Dropbox folder: ${normalized}/${folder}.`);
+      }
+    }
   }
   if (action === "link-existing") {
     if (!exists || !fs.statSync(target).isDirectory()) {

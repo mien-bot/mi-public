@@ -1,5 +1,5 @@
 /**
- * Lists real Dropbox folders under DROPBOX_ROOT/1.00 PROJECTS/PERMIT QAQC/ that aren't
+ * Lists real Dropbox folders under DROPBOX_ROOT/Projects/PERMIT QAQC/ that aren't
  * yet linked to any permit-qaqc/<slug>/qaqc.yaml. Read-only -- never creates an
  * engagement or writes a dropbox_path itself (lib/schema.ts: permitQaqcEngagementSchema's
  * dropbox_path is always human-set, matching every other dropbox_path in this repo).
@@ -31,7 +31,7 @@ async function main() {
     process.exit(1);
   }
 
-  const PERMIT_QAQC_SUBDIR = path.join("1.00 PROJECTS", "PERMIT QAQC");
+  const PERMIT_QAQC_SUBDIR = path.join("Projects", "PERMIT QAQC");
   const permitQaqcRoot = path.join(DROPBOX_ROOT, PERMIT_QAQC_SUBDIR);
   if (!fs.existsSync(permitQaqcRoot)) {
     console.error(`"${permitQaqcRoot}" doesn't exist -- check DROPBOX_ROOT in .env.local.`);

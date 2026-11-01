@@ -3,6 +3,7 @@ import type { ProjectDetails } from "@/lib/schema";
 export const DETAIL_LABELS: Record<keyof ProjectDetails, string> = {
   client_name: "Client", address: "Address", project_type: "Project type", scope: "Scope",
   fee: "Fee", fee_currency: "Currency", fee_notes: "Fee notes", contract_link_or_path: "Contract",
+  contract_start_date: "Contract start", contract_end_date: "Contract end", contract_duration: "Contract duration", payments: "Payments",
   client_contacts: "Client contacts", team: "Project team", phases: "Phases and agreements",
 };
 export function projectDetailsChanges(before: ProjectDetails, after: ProjectDetails) {

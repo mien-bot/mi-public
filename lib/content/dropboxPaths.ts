@@ -15,6 +15,20 @@ export function normalizeDropboxSelection(root: string, selectedAbsolutePath: st
   return path.relative(resolvedRoot, resolvedSelection).split(path.sep).join("/");
 }
 
+/** Folders that hold many projects. electron/dropboxPaths.js keeps the same list for the picker. */
+const CONTAINER_FOLDERS = new Set(["projects"]);
+
+/** Linking one of these would make a project scan, and its agents work in, every other project. */
+export function isDropboxContainerFolder(relativePath: string | null | undefined): boolean {
+  return CONTAINER_FOLDERS.has((relativePath ?? "").replaceAll("\\", "/").replace(/\/+$/, "").toLowerCase());
+}
+
+export function assertProjectFolder(relativePath: string): void {
+  if (isDropboxContainerFolder(relativePath)) {
+    throw new Error("That folder holds all the projects. Choose this project's own folder inside it.");
+  }
+}
+
 export function normalizeDropboxRelativePath(root: string, relativePath: string): string {
   if (!root) throw new Error("DROPBOX_ROOT is not configured on this machine.");
   if (

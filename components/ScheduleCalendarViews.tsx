@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { ScheduleSnapshotEntry } from "@/types/electron";
+import { scheduleEntryTier } from "@/lib/scheduleInsights";
 import { hasMiDragKind, readMiDragData, setMiDragData } from "./miDragData";
 import {
   canDragScheduleEntry,
@@ -95,6 +96,7 @@ function EntryButton({
   const draggable = canDragScheduleEntry(entry) && !saving;
   const dragNote = draggable ? (time ? "Drag to move; Ctrl-drag to duplicate; use the bottom handle to resize" : "Drag to move; Ctrl-drag to duplicate") : "Open in Notion";
   const eventColor = scheduleEntryColor(entry);
+  const tier = scheduleEntryTier(entry.type);
   return (
     <button
       type="button"
@@ -107,13 +109,14 @@ function EntryButton({
       onDragEnd={onDragEnd}
       onClick={() => onOpen(entry)}
       aria-busy={saving}
-      className={`block h-full w-full overflow-hidden rounded border-l-[3px] px-1.5 py-1 text-left text-foreground hover:brightness-110 ${draggable ? "cursor-grab active:cursor-grabbing" : ""} ${saving ? "cursor-wait opacity-60" : ""} ${compact ? "truncate text-[10px]" : "text-xs"}`}
+      className={`block h-full w-full overflow-hidden rounded px-1.5 py-1 text-left text-foreground hover:brightness-110 ${tier === "critical" ? "border-l-[6px] font-semibold ring-1 ring-inset ring-accent/60" : tier === "high" ? "border-l-[4px] font-medium" : "border-l-[3px]"} ${tier === "low" ? "opacity-75" : ""} ${draggable ? "cursor-grab active:cursor-grabbing" : ""} ${saving ? "cursor-wait opacity-60" : ""} ${compact ? "truncate text-[10px]" : "text-xs"}`}
       style={{
         borderLeftColor: eventColor,
-        background: `color-mix(in srgb, ${eventColor} 20%, var(--background))`,
+        background: `color-mix(in srgb, ${eventColor} ${tier === "critical" ? 38 : tier === "low" ? 10 : 20}%, var(--background))`,
       }}
-      title={`${time ? `${time} · ` : ""}${entry.name} · ${dragNote}`}
+      title={`${tier === "critical" ? "Critical · " : ""}${time ? `${time} · ` : ""}${entry.name} · ${dragNote}`}
     >
+      {tier === "critical" && <span aria-hidden="true" className="mr-1">◆</span>}
       {time && <span className="mr-1 font-medium">{time}</span>}
       {entry.name} ↗
     </button>

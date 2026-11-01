@@ -46,18 +46,18 @@ afterAll(() => {
 
 describe("mirrorProjectMemory", () => {
   it("copies all project text knowledge into the linked project's Mi folder", () => {
-    writeProject("1.00 PROJECTS/Demo");
+    writeProject("Projects/Demo");
 
     const result = mirrorProjectMemory({ repoRoot, projectSlug: "demo", dropboxRoot });
 
     expect(result.mirrored).toBe(true);
-    expect(fs.readFileSync(path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "memory", "notes.md"), "utf8"))
+    expect(fs.readFileSync(path.join(dropboxRoot, "Projects", "Demo", "Mi", "memory", "notes.md"), "utf8"))
       .toBe("Remember this.\n");
     // Exactly one notes.md: a second copy at the Mi/ root is not refreshed by the writer that
     // applies memory-note cards, so it can only go stale and mislead.
-    expect(fs.existsSync(path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "notes.md")))
+    expect(fs.existsSync(path.join(dropboxRoot, "Projects", "Demo", "Mi", "notes.md")))
       .toBe(false);
-    expect(fs.existsSync(path.join(dropboxRoot, "1.00 PROJECTS", "Demo", "Mi", "project.yaml")))
+    expect(fs.existsSync(path.join(dropboxRoot, "Projects", "Demo", "Mi", "project.yaml")))
       .toBe(true);
   });
 

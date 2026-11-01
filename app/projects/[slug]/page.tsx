@@ -1,3 +1,4 @@
+import { ProjectJourney } from "@/components/ProjectJourney";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ProjectDiscoveryPanel } from "@/components/ProjectDiscoveryPanel";
@@ -261,7 +262,14 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
       <ProjectBrief slug={slug} scope={details?.scope ?? ""} attention={intelligence.attentionReasons}
         nextMilestone={nextMilestone} decisions={decisions.map(record => record.decision)}
         knowledge={knowledge ? sortKnowledgeEntries(knowledge.entries) : []} />
-      <ProjectDiscoveryPanel slug={slug} />
+      <ProjectJourney slug={slug} milestones={schedule.milestones} />
+      <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer font-medium">Files &amp; shared work</summary>
+        <div className="mt-4"><ProjectDiscoveryPanel slug={slug} /></div>
+      </details>
+      <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer font-medium">Project facts: fee, scope &amp; connections</summary>
+        <div className="mt-4">
       {/* What this project is, before anything about what Mi can do to it. */}
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="Project facts">
         <StatCard
@@ -343,8 +351,12 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </StatCard>
       </section>
 
+        </div>
+      </details>
+
       {intelligence.attentionReasons.length > 0 && (
-        <section className="rounded-lg border border-status-warning/40 bg-card p-4" aria-labelledby="project-attention-heading">
+        <details className="progressive-disclosure rounded-lg border border-status-warning/40 bg-card p-4">
+          <summary className="cursor-pointer font-medium">All attention flags ({intelligence.attentionReasons.length})</summary>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 id="project-attention-heading" className="flex items-center gap-2 font-medium">
               <span className="grid h-6 w-6 shrink-0 place-items-center rounded-md border border-status-warning/40 bg-status-warning/10 text-status-warning">
@@ -365,7 +377,7 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
               </li>
             ))}
           </ul>
-        </section>
+        </details>
       )}
 
       <PendingApprovalsBanner approvals={pendingApprovals} />
@@ -387,12 +399,18 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         />
       )}
 
+      <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer font-medium">Milestone details &amp; archive</summary>
+        <div className="mt-4">
       <ProjectMilestoneOverview
         slug={slug}
         milestones={getSchedule(slug, { includeArchived: true }).milestones}
         healthExplanation={intelligence.healthExplanation}
         scheduleHash={scheduleHash}
       />
+
+        </div>
+      </details>
 
       <section aria-labelledby="project-records-heading">
         <h2 id="project-records-heading" className="flex items-center gap-2 font-medium">
@@ -498,6 +516,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </div>
       </section>
 
+      <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
+        <summary className="cursor-pointer font-medium">Recent activity &amp; project knowledge</summary>
+        <div className="mt-4 space-y-4">
       <section aria-labelledby="project-activity-heading">
         <h2 id="project-activity-heading" className="flex items-center gap-2 font-medium">
           <AppIcon name="history" className="h-4 w-4 text-accent" />
@@ -594,6 +615,9 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
           </Link>
         </section>
       )}
+
+        </div>
+      </details>
 
       <details className="progressive-disclosure rounded-lg border border-border p-4">
         <summary className="cursor-pointer font-medium">Reviews, markups, MEP, and permits</summary>

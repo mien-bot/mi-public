@@ -9,7 +9,7 @@ import { Script } from "node:vm";
 
 const electronDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "electron");
 
-const jsFiles = readdirSync(electronDir)
+const jsFiles = readdirSync(electronDir, { recursive: true })
   .filter((name) => name.endsWith(".js") && !name.endsWith(".test.js"))
   .sort();
 

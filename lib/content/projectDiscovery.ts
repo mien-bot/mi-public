@@ -3,7 +3,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { getProject, getProjectSlugs, contentDir } from "./projects";
 import { DROPBOX_ROOT } from "./paths";
-import { resolveDropboxRelativePath } from "./dropboxPaths";
+import { isDropboxContainerFolder, resolveDropboxRelativePath } from "./dropboxPaths";
 import { hashContent } from "./atomicContentWrite";
 import type { ProjectDiscovery, ProjectFile, ProjectHandoff } from "./projectDiscoveryTypes";
 import { handoffSchema } from "./projectHandoffSchema";
@@ -88,6 +88,7 @@ async function scanProject(slug: string, pdfOnly = false): Promise<ProjectDiscov
     scannedAt: new Date().toISOString(), complete: true, warnings: [], shared: Boolean(roots.sharedRoot), destination: roots.destination };
   let visited = 0, bytes = 0;
   const warn = (message: string) => { result.complete = false; if (!result.warnings.includes(message)) result.warnings.push(message); };
+  if (isDropboxContainerFolder(roots.project.meta.dropbox_path)) warn("This project is linked to the folder that holds every project, so files from other projects appear here. Link its own folder on the project's Dropbox files page.");
   async function walk(root: string, relative: string, source: "dropbox" | "local", depth: number, records: boolean) {
     if (depth > 8 || visited >= 4000 || result.files.length >= 1000) { warn("Scan limit reached. Some files are not listed; use Dropbox files to browse further."); return; }
     let entries;

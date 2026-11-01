@@ -6,7 +6,7 @@ import {
   timeInTimezone,
 } from "@/lib/content/timezone";
 
-export type ScheduleCalendarView = "month" | "week" | "work-week" | "day";
+export type ScheduleCalendarView = "year" | "month" | "week" | "work-week" | "day";
 export type ScheduleDragMode = "move" | "resize" | "duplicate";
 
 function copyDate(date: Date): Date {
@@ -64,6 +64,11 @@ function weekStart(anchor: Date): Date {
 }
 
 export function scheduleVisibleDays(anchor: Date, view: ScheduleCalendarView): Date[] {
+  if (view === "year") {
+    const year = anchor.getFullYear();
+    const length = Math.round((Date.UTC(year + 1, 0, 1) - Date.UTC(year, 0, 1)) / 86_400_000);
+    return Array.from({ length }, (_, index) => new Date(year, 0, 1 + index));
+  }
   if (view === "month") {
     const first = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
     const start = new Date(first.getFullYear(), first.getMonth(), 1 - first.getDay());
@@ -86,12 +91,14 @@ export function scheduleVisibleDays(anchor: Date, view: ScheduleCalendarView): D
 
 export function moveScheduleAnchor(anchor: Date, view: ScheduleCalendarView, offset: -1 | 1): Date {
   const next = copyDate(anchor);
-  if (view === "month") next.setMonth(next.getMonth() + offset, 1);
+  if (view === "year") next.setFullYear(next.getFullYear() + offset, 0, 1);
+  else if (view === "month") next.setMonth(next.getMonth() + offset, 1);
   else next.setDate(next.getDate() + offset * (view === "day" ? 1 : 7));
   return next;
 }
 
 export function scheduleViewHeading(anchor: Date, view: ScheduleCalendarView): string {
+  if (view === "year") return String(anchor.getFullYear());
   if (view === "month") {
     return new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(anchor);
   }
@@ -106,8 +113,11 @@ export function scheduleViewHeading(anchor: Date, view: ScheduleCalendarView): s
   return `${firstLabel} – ${lastLabel}`;
 }
 
+/** Google events are a read-only layer, keyed with this prefix. */
+export const GOOGLE_ENTRY_PREFIX = "google:";
+
 export function canDragScheduleEntry(entry: ScheduleSnapshotEntry): boolean {
-  return Boolean(entry.date);
+  return Boolean(entry.date) && !entry.notion_page_id.startsWith(GOOGLE_ENTRY_PREFIX);
 }
 
 function durationMs(entry: ScheduleSnapshotEntry): number | null {

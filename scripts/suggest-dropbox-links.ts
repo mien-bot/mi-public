@@ -1,13 +1,13 @@
 /**
  * Suggests project.yaml `dropbox_path` links by fuzzy-matching each local
  * project's name against real folder names under
- * DROPBOX_ROOT/1.00 PROJECTS/. Read-only — never writes dropbox_path itself
+ * DROPBOX_ROOT/Projects/. Read-only — never writes dropbox_path itself
  * (lib/schema.ts: that field is always human-set, never guessed — folder
  * naming schemes between Notion and Dropbox don't line up cleanly enough to
  * trust an auto-match, e.g. address typos/renumbering between systems).
  *
  * Human reviews the suggestions, then confirms via:
- *   npm run mi -- dropbox link <slug> "1.00 PROJECTS/<folder name>"
+ *   npm run mi -- dropbox link <slug> "Projects/<folder name>"
  *
  * Usage: npm run suggest-dropbox-links
  */
@@ -35,7 +35,7 @@ async function main() {
     process.exit(1);
   }
 
-  const PROJECTS_SUBDIR = "1.00 PROJECTS";
+  const PROJECTS_SUBDIR = "Projects";
   const projectsRoot = path.join(DROPBOX_ROOT, PROJECTS_SUBDIR);
   if (!fs.existsSync(projectsRoot)) {
     console.error(`"${projectsRoot}" doesn't exist — check DROPBOX_ROOT in .env.local.`);
@@ -73,7 +73,7 @@ async function main() {
   }
 
   console.log(
-    '\nConfirm a match with: npm run mi -- dropbox link <slug> "1.00 PROJECTS/<folder name>"',
+    '\nConfirm a match with: npm run mi -- dropbox link <slug> "Projects/<folder name>"',
   );
 }
 

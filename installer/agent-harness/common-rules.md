@@ -138,6 +138,12 @@ Do not use `Out-File` without an explicit encoding: Windows PowerShell defaults 
 - Omit `id` and Mi derives one from the content, so the same finding recorded twice collapses
   into one card instead of two.
 
+**Recording a meeting from this terminal.** When the person says they are in a meeting, asks you
+to take meeting notes, or is clearly dictating notes from one, file a `meeting` entry yourself.
+Nobody needs to click Add meeting first. Write it as the meeting wraps up, or sooner if asked, and
+update your notes by writing a fresh entry rather than leaving them only in this chat, because
+terminal output never reaches the Meetings page by itself. If you don't know the date, ask for it.
+
 **Meeting entries.** A `meeting` entry is the one kind a person can confirm into a real meeting
 note on this project's Meetings page, and Mi can only offer that when the entry states an
 absolute `YYYY-MM-DD` meeting date. Mi will never date a meeting for you, so an entry that says
@@ -149,6 +155,7 @@ object next to `body`:
 ```json
 "meeting": {
   "date": "2026-08-14",
+  "meeting_type": "Client Meeting",
   "start_time": "14:00",
   "end_time": "15:30",
   "timezone": "America/Chicago",
@@ -162,8 +169,9 @@ object next to `body`:
 ```
 
 Structured fields win where present, anything you leave out is read back from the body's
-headings, and nothing you wrote is dropped either way. `due_date` stays free text -- write what
-was said rather than resolving "end of next week" into a date.
+headings, and nothing you wrote is dropped either way. Leave `meeting_type` out unless it was
+stated. `due_date` stays free text -- write what was said rather than resolving "end of next
+week" into a date.
 
 **The bar for writing an entry:** a colleague picking this up in three weeks needs it and
 cannot reconstruct it from the files. Record decisions and their reasoning, action items with
@@ -306,14 +314,18 @@ kinds and data are:
 
 - `project-details`: any confirmed subset of `client_name`, `client_contacts`, `address`,
   `scope`, `project_type`, `team`, `fee`, `fee_currency`, `fee_notes`, or
-  `contract_link_or_path`, plus `phases` when the project has multiple services or agreements;
+  `contract_link_or_path`, `contract_start_date`, `contract_end_date`, `contract_duration`, and
+  `payments` (each with `id`, `label`, `amount`, `trigger`, `due_date`, `invoiced_date`,
+  `paid_date`, `phase_id`; leave a date blank unless the contract fixes it), plus `phases` when
+  the project has multiple services or agreements;
   `team` must be an array of objects shaped as `{"name":"Example User","role":""}`, never an
   array of name strings. Preserve a confirmed role when known; use an empty role instead of
   inventing one. This is a patch: a key you omit keeps whatever is on file, and a key you send
   as `""` or `[]` **clears** the stored value. Send only what you actually mean to change, and
   never pad the object out to a full record.
-- `meeting-note`: `id`, `title`, `meeting_type`, `date`, `start_time`, `end_time`, `timezone`,
-  `attendees`, `raw_notes`, `summary`, `decisions`, `action_items`, and `open_questions`;
+- `meeting-note`: `id`, `title`, `meeting_type`, `visibility`, `meeting_status`, `date`,
+  `start_time`, `end_time`, `timezone`, `attendees`, `agenda_items`, `raw_notes`, `summary`,
+  `decisions`, `action_items`, and `open_questions`;
 - `schedule-item`: `name`, `date` (`YYYY-MM-DD`), `type`, `start_time`, and `end_time`.
   `start_time` and `end_time` are **full ISO 8601 datetimes with an explicit UTC offset** —
   `"2026-09-02T13:00:00-05:00"`, not a bare clock time like `"10:00"`, which is rejected and

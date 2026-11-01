@@ -10,6 +10,8 @@ export const reviewBatchSchema = z.array(z.object({
   slug: z.string().regex(/^[a-zA-Z0-9_-]+$/).max(200),
   cardIds: z.array(z.string().min(1).max(200)).min(1).max(100),
   destinationKind: reviewDestinationKindSchema,
+  /** Relative to the workspace's confirmed folder; only for the workspace-folder destination. */
+  folder: z.string().max(500).optional(),
 })).min(1).max(50).superRefine((groups, ctx) => {
   if (groups.reduce((sum, group) => sum + group.cardIds.length, 0) > 100) {
     ctx.addIssue({ code: "custom", message: "Select up to 100 items per batch." });

@@ -329,8 +329,8 @@ async function refreshScheduleSnapshot({
   dataRoot,
   fetchImpl = fetch,
   now = () => new Date(),
-  windowDaysPast = 30,
-  windowDaysFuture = 120,
+  windowDaysPast = 365,
+  windowDaysFuture = 400,
 }) {
   const dataSource = await resolveDataSource(fetchImpl, token, scheduleDataSourceId, "STUDIO Schedule");
   const databaseId = sourceId(dataSource.id);

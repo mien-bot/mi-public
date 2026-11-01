@@ -7,6 +7,7 @@ import { computeMilestoneStatus } from "@/lib/content/status";
 import { dateInTimezone } from "@/lib/content/timezone";
 import { NotionLink } from "./NotionLink";
 import { DeleteRecordButton } from "@/components/DeleteRecordButton";
+import { slipWarnings, type TimelineRow } from "@/lib/scheduleInsights";
 import { ProjectMilestoneCalendar } from "./ProjectMilestoneCalendar";
 import { usePersonalTimezone } from "./usePersonalTimezone";
 
@@ -14,7 +15,7 @@ type Draft = ScheduleDraftItem & { selected: boolean };
 type Confirmation =
   | { kind: "sync"; items: Draft[] }
   | { kind: "local"; item: Draft }
-  | { kind: "update"; id: string; plannedDate: string; actualDate: string | null; syncNotion: boolean; action?: "complete" | "reopen" };
+  | { kind: "update"; id: string; plannedDate: string; actualDate: string | null; syncNotion: boolean; action?: "complete" | "reopen"; priority?: Milestone["priority"] | "auto" };
 
 class ScheduleRequestError extends Error {
   code?: string;
@@ -24,11 +25,12 @@ class ScheduleRequestError extends Error {
   }
 }
 
-export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLinked }: {
+export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLinked, row }: {
   slug: string;
   milestones: Milestone[];
   initialHash: string | null;
   notionLinked: boolean;
+  row: TimelineRow;
 }) {
   const router = useRouter();
   const { timezone } = usePersonalTimezone();
@@ -45,6 +47,20 @@ export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLin
   const [results, setResults] = useState<{ name: string; status: string; error?: string }[]>([]);
 
   const ordered = useMemo(() => [...milestones].sort((a, b) => a.planned_date.localeCompare(b.planned_date)), [milestones]);
+  const paymentDrafts = row.details.payments.filter((payment) => payment.due_date && !payment.paid_date
+    && !milestones.some((item) => item.name === `Payment due: ${payment.label}`)
+    && !drafts.some((item) => item.name === `Payment due: ${payment.label}`));
+
+  function addPaymentDrafts() {
+    setDrafts((current) => [...current, ...paymentDrafts.map((payment) => ({
+      client_request_id: crypto.randomUUID(), name: `Payment due: ${payment.label}`, date: payment.due_date,
+      type: "Deadline" as ScheduleType, start_time: null, end_time: null, selected: true,
+    }))]);
+    setMessage("Payment drafts added. Nothing has been written locally or to Notion.");
+  }
+  const moveWarnings = confirmation?.kind === "update" && !confirmation.action
+    ? slipWarnings(row.details, milestones.find((item) => item.id === confirmation.id)?.planned_date.slice(0, 10) ?? confirmation.plannedDate, confirmation.plannedDate)
+    : [];
 
   /**
    * Removes one Mi-local milestone. Throws on failure so the shared control shows the
@@ -180,6 +196,7 @@ export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLin
           <select value={type} onChange={(event) => setType(event.target.value as ScheduleType)} className="rounded-md border border-border bg-card px-3 py-2 text-sm">{scheduleTypeSchema.options.map((value) => <option key={value}>{value}</option>)}</select>
           <button className="rounded-md border border-border px-4 py-2 text-sm hover:border-accent">Add draft</button>
         </form>
+        {paymentDrafts.length > 0 && <button type="button" onClick={addPaymentDrafts} className="mt-3 rounded-md border border-border px-3 py-1.5 text-sm">Draft {paymentDrafts.length} payment {paymentDrafts.length === 1 ? "date" : "dates"} for the calendar and Notion</button>}
         {drafts.length > 0 && <div className="mt-4 space-y-2">
           {drafts.map((draft, index) => <div key={draft.client_request_id} className="grid items-center gap-2 rounded-md border border-border p-3 md:grid-cols-[auto_1fr_auto_auto_auto]">
             <input type="checkbox" checked={draft.selected} aria-label={`Select ${draft.name}`} onChange={(event) => setDrafts((current) => current.map((item, i) => i === index ? { ...item, selected: event.target.checked } : item))} />
@@ -197,6 +214,7 @@ export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLin
         milestones={milestones}
         onMove={proposeCalendarMove}
         onSelect={selectCalendarMilestone}
+        row={row}
       />
 
       <section>
@@ -236,6 +254,14 @@ export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLin
                     action: "complete",
                   })} className="rounded-md bg-foreground px-3 py-2 text-sm text-background">Mark complete today</button>
                 )}
+                <label className="text-xs text-muted-foreground">Priority{" "}
+                  <select aria-label={`Priority for ${milestone.name}`} value={milestone.priority ?? "auto"} onChange={(event) => setConfirmation({
+                    kind: "update", id: milestone.id, plannedDate: milestone.planned_date.slice(0, 10), actualDate: milestone.actual_date,
+                    syncNotion: false, priority: event.target.value as Milestone["priority"] | "auto",
+                  })} className="rounded-md border border-border bg-card px-1.5 py-1 text-foreground">
+                    <option value="auto">Automatic</option><option value="critical">Critical</option><option value="high">High</option><option value="normal">Normal</option>
+                  </select>
+                </label>
                 <span className="text-xs text-muted-foreground">{notionUrl ? "Updates Mi and the linked Notion milestone after confirmation." : "Updates this Mi-local milestone after confirmation."}</span>
                 {/* A Notion-linked milestone is refused by the server: Mi's copy mirrors a
                     row that still exists over there, so deleting it here would only make the
@@ -261,6 +287,7 @@ export function ProjectScheduleEditor({ slug, milestones, initialHash, notionLin
       {confirmation && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" role="presentation">
         <div role="dialog" aria-modal="true" aria-labelledby="schedule-confirm-title" className="w-full max-w-lg rounded-lg border border-border bg-card p-5 shadow-lg">
           <h2 id="schedule-confirm-title" className="font-medium">Confirm schedule change</h2>
+          {moveWarnings.map((warning) => <p key={warning} className="mt-2 text-sm text-status-warning-foreground">{warning}</p>)}
           <p className="mt-2 text-sm text-muted-foreground">{confirmation.kind === "sync" ? `${confirmation.items.length} selected item(s) will be created in STUDIO Schedule one by one and linked to this exact project. Successful retries will be skipped.` : confirmation.kind === "local" ? `“${confirmation.item.name}” will be saved only to Mi.` : confirmation.action === "complete" ? `This milestone will be marked complete on ${confirmation.actualDate}${confirmation.syncNotion ? ", and Notion Status plus Completed Date will be updated" : " in Mi"}.` : confirmation.action === "reopen" ? `This milestone will be reopened and its completed date cleared${confirmation.syncNotion ? " in Mi and Notion" : " in Mi"}.` : confirmation.syncNotion ? "The Mi milestone and its linked Notion Date, Status, and Completed Date properties will be updated." : "Only the Mi milestone will be updated; Notion will not change."}</p>
           <div className="mt-4 flex justify-end gap-2">
             <button type="button" onClick={() => { setConfirmation(null); setConflict(false); }} className="rounded-md border border-border px-3 py-2 text-sm">Cancel</button>

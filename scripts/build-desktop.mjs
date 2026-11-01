@@ -4,6 +4,13 @@ import path from "node:path";
 import process from "node:process";
 
 const repoRoot = process.cwd();
+// Windows releases must carry a freshly built, matching native CAD payload.
+if (process.platform === "win32") {
+  for (const script of ["build-revit.cjs", "build-autocad.cjs"]) {
+    const native = spawnSync(process.execPath, [path.join(repoRoot, "scripts", script)], { stdio: "inherit" });
+    if (native.status !== 0) process.exit(native.status ?? 1);
+  }
+}
 const safeContentRoot = path.join(repoRoot, ".tmp", "desktop-build-content");
 const contentDirs = ["projects", "clients", "leads", "codes", "reference", "library", "notion"];
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { TerminalPanel } from "@/components/TerminalPanel";
 import { ProjectPdfFinder } from "@/components/ProjectPdfFinder";
+import { CadConnections, CadPairingBanner } from "@/components/CadConnections";
 import { OpenTerminalButton } from "./OpenTerminalButton";
 import { normalizeWorkspaceCwd, workspaceDisplayName } from "@/components/workspacePanes";
 
@@ -21,6 +22,7 @@ export function TerminalPaneWindow() {
   const [pinned, setPinned] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [cadAgent, setCadAgent] = useState(false); // An agent window is for working, so setup rows step aside for the terminal.
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- Electron preload exists only after hydration
@@ -118,12 +120,14 @@ export function TerminalPaneWindow() {
           </button>
         </div>
       </div>
+      {/^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <CadPairingBanner workspace={workspace} session={session} onAgent={setCadAgent} />}
       {error && (
         <p role="alert" className="border-b border-red-400/30 bg-red-500/10 px-3 py-1.5 text-[11px] text-red-600 dark:text-red-300">
           {error}
         </p>
       )}
-      {/^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <div className="shrink-0 border-b border-border p-2"><ProjectPdfFinder slug={workspace.slice(9)} /></div>}
+      {!cadAgent && /^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <div className="shrink-0 border-b border-border p-2"><ProjectPdfFinder slug={workspace.slice(9)} /></div>}
+      {!cadAgent && /^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <CadConnections key={workspace} workspace={workspace} />}
       <div className="min-h-0 flex-1">
         <TerminalPanel cwd={workspace} session={session} compact chromeless />
       </div>

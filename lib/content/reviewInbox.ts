@@ -57,8 +57,10 @@ export const reviewDestinationKindSchema = z.enum([
   "lead-notes",
   "project-notes",
   "qaqc-notes",
+  "qaqc-memory",
   "lead-record-field",
   "project-meeting",
+  "workspace-folder",
 ]);
 export type ReviewDestinationKind = z.infer<typeof reviewDestinationKindSchema>;
 

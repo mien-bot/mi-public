@@ -12,6 +12,7 @@ import { scheduleTypeSchema } from "@/lib/schema";
 import { recordAudit } from "@/src/audit/log";
 import { isWriteAllowed } from "@/src/policies/approvals";
 import { completeScheduleCreate, reserveScheduleCreate } from "@/lib/content/scheduleCreateJournal";
+import { applyNotionMoveToProject } from "@/lib/content/schedulePortfolio";
 
 function actor(): string {
   return process.env.USERNAME || process.env.USER || "unknown";
@@ -140,10 +141,19 @@ export async function POST(request: Request) {
         },
         applied: true,
       });
+      // Notion already holds the move, so a project-side problem is a note, not a failure.
+      let projectNote = "";
+      if (calendarDayChanged) {
+        try {
+          applyNotionMoveToProject(proposal.data.eventPageId, proposal.data.newDate);
+        } catch {
+          projectNote = " Notion is updated, but Mi could not update the project's own timeline. Pull from Notion on the project's Plan page.";
+        }
+      }
       return NextResponse.json({
         ok: true,
         message: calendarDayChanged
-          ? `Moved "${proposal.data.name}" to ${proposal.data.newDate}.`
+          ? `Moved "${proposal.data.name}" to ${proposal.data.newDate}.${projectNote}`
           : `Updated the time for "${proposal.data.name}".`,
       });
     } catch (error) {

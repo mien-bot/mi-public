@@ -2,6 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { load as loadYaml } from "js-yaml";
+import { getAllLeads } from "./leads";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   addCommunication,
@@ -118,6 +119,7 @@ describe("lead mutations", () => {
     }, { leadsDir, projectsDir });
 
     expect(fs.existsSync(result.filePath)).toBe(false);
+    expect(getAllLeads(leadsDir)).toEqual([]);
     expect(fs.existsSync(result.backupPath)).toBe(true);
     // the whole folder (including the site visit) is recoverable, not just lead.yaml
     expect(loadYaml(fs.readFileSync(path.join(result.backupPath, "lead.yaml"), "utf8"))).toMatchObject({

@@ -8,12 +8,13 @@ export function ArchitecturalDrawing() {
       <path d="M48 20H272M48 16V24M272 16V24M286 40V140M282 40H290M282 140H290" />
     </g>
     <g className="mi-plan-outline" strokeWidth="2" strokeLinecap="square">
-      <path pathLength="1" d="M142 140H48V40H272V140H178M54 134V46H266V134H178M142 134H54" />
-      <path pathLength="1" d="M150 46V88M150 114V134M54 96H108M134 96H150M210 46V78M210 104V134" />
+      <path pathLength="1" d="M162 140H48V40H272V140H198M54 134V46H266V134H198M162 134H54M162 134V140M198 134V140" />
+      <path pathLength="1" d="M150 46V64M150 90V104M150 130V134M54 96H150M210 46V70M210 96V134" />
     </g>
     <g className="mi-plan-detail" strokeWidth="0.9" opacity="0.65">
-      <path pathLength="1" d="M142 140V104A36 36 0 0 1 178 140M150 114H124A26 26 0 0 1 150 88M210 104H184A26 26 0 0 1 210 78" />
-      <path pathLength="1" d="M70 59H127V80H70ZM224 57H252V76H224ZM224 114H252M224 119H252M224 124H252" />
+      {/* One door per opening. Every swing stays inside its own room, clear of walls and furniture. */}
+      <path pathLength="1" d="M198 134V98A36 36 0 0 0 162 134M150 90H124A26 26 0 0 1 150 64M150 130H124A26 26 0 0 1 150 104M210 96H236A26 26 0 0 0 210 70" />
+      <path pathLength="1" d="M66 59H116V80H66ZM232 52H256V68H232ZM224 114H252M224 119H252M224 124H252" />
       <path d="M75 40H125M75 43H125M227 140H251M227 137H251" strokeWidth="3" />
     </g>
     <g opacity="0.45" strokeWidth="0.8"><path d="M27 130V148M23 136L27 130L31 136M48 162H96M48 159V165M72 159V165M96 159V165" /></g>

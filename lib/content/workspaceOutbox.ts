@@ -77,6 +77,8 @@ export type OutboxMeetingAction = z.infer<typeof outboxMeetingActionSchema>;
  */
 export const outboxMeetingSchema = z.object({
   date: z.string().trim().max(40).default(""),
+  /** Only what was stated, such as "Client Meeting"; left blank rather than guessed. */
+  meeting_type: z.string().trim().max(100).default(""),
   start_time: z.string().trim().max(20).default(""),
   end_time: z.string().trim().max(20).default(""),
   timezone: z.string().trim().max(100).default(""),

@@ -1,5 +1,6 @@
 "use client";
 
+import { GoogleCalendarConnection } from "@/components/GoogleCalendarConnection";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   canonicalizeIanaTimezone,
@@ -605,6 +606,8 @@ export function PartnerSetup() {
           {showAdvanced ? "Hide advanced settings" : "Show advanced settings"}
         </button>
       </div>
+
+      <GoogleCalendarConnection />
 
       {showAdvanced && <section className="mt-5 rounded-md border border-border p-4">
         <h3 className="text-sm font-medium">Migration & recovery</h3>

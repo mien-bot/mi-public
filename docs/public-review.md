@@ -2,6 +2,14 @@
 
 Reviewed on 2026-10-14, starting from commit `06b0e89`.
 
+## 0.6.0 source update
+
+This source now matches private Mi 0.6.0 through a scrubbed replay of changes, not a copied history. It adds review, schedule, calendar, Google Calendar, meeting, and native Revit and AutoCAD source.
+
+- CAD add-in installs check a certificate thumbprint that is zeroed here. Set your own before building an add-in. Mi's installer flow has not been tested from this edition.
+- The dependency findings below were not rechecked or fixed in this update.
+- Example names, addresses, IDs, and folder names are placeholders. Names and folder labels removed in this update may remain in this repository's earlier commits.
+
 ## Remaining findings
 
 1. **Critical: dependencies require security updates.** `npm audit --omit=dev` reports 15 affected production dependency entries: 1 critical, 10 high, and 4 moderate. These are dependency findings, not proof that every issue is exploitable through Mi. The pinned Next.js 16.2.11 is affected by the [Windows server remote-code-execution advisory](https://github.com/advisories/GHSA-p293-qw3h-jr36), among other findings. PDF.js 6.1.200 is affected by the [malicious PDF execution advisory](https://github.com/advisories/GHSA-hq66-cqwq-w95j). The audit recommends Next.js 16.4.1; PDF.js needs at least 6.2.108 for the cited advisory. Upgrade and test the full dependency tree before deployment or untrusted document processing. This review does not apply untested dependency upgrades.

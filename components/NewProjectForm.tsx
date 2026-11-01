@@ -375,7 +375,7 @@ export function NewProjectForm() {
                   value={existingDropboxPath}
                   onChange={(event) => setExistingDropboxPath(event.target.value)}
                   required
-                  placeholder="1.00 PROJECTS/Existing Project"
+                  placeholder="Projects/Existing Project"
                   className="min-w-0 flex-1 rounded-md border border-border bg-card px-3 py-2 outline-none focus:border-accent"
                 />
                 {mounted && window.electronAPI?.dropbox && (

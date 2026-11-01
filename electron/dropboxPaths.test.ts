@@ -8,7 +8,7 @@ const { normalizeDropboxSelection } = require("./dropboxPaths.js") as { normaliz
 describe("Electron Dropbox picker containment", () => {
   const root = path.resolve("C:/Dropbox/STUDIO");
   it("returns only normalized relative paths inside DROPBOX_ROOT", () => {
-    expect(normalizeDropboxSelection(root, path.join(root, "1.00 PROJECTS", "Demo"))).toBe("1.00 PROJECTS/Demo");
+    expect(normalizeDropboxSelection(root, path.join(root, "Projects", "Demo"))).toBe("Projects/Demo");
     expect(() => normalizeDropboxSelection(root, path.resolve(root, "..", "outside"))).toThrow(/inside DROPBOX_ROOT/);
   });
 });

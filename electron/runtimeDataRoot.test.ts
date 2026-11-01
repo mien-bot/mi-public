@@ -15,7 +15,7 @@ function fixture() {
   roots.push(root);
   const localDataRoot = path.join(root, "Profile", "data");
   const dropboxRoot = path.join(root, "Dropbox", "STUDIO");
-  const sharedRoot = path.join(dropboxRoot, "7.00 Mi Data");
+  const sharedRoot = path.join(dropboxRoot, "Mi Data");
   fs.mkdirSync(localDataRoot, { recursive: true });
   fs.mkdirSync(sharedRoot, { recursive: true });
   return { root, localDataRoot, dropboxRoot, sharedRoot };
@@ -29,7 +29,7 @@ describe("installed runtime data root", () => {
       developmentRoot: root,
       localDataRoot,
       dropboxRoot,
-      sharedRelativePath: "7.00 Mi Data",
+      sharedRelativePath: "Mi Data",
       sharedDataRootEnabled: true,
     })).toBe(path.resolve(root));
     expect(resolveRuntimeDataRoot({
@@ -37,7 +37,7 @@ describe("installed runtime data root", () => {
       developmentRoot: root,
       localDataRoot,
       dropboxRoot,
-      sharedRelativePath: "7.00 Mi Data",
+      sharedRelativePath: "Mi Data",
       sharedDataRootEnabled: false,
     })).toBe(path.resolve(localDataRoot));
   });
@@ -49,7 +49,7 @@ describe("installed runtime data root", () => {
       developmentRoot: root,
       localDataRoot,
       dropboxRoot,
-      sharedRelativePath: "7.00 Mi Data",
+      sharedRelativePath: "Mi Data",
       sharedDataRootEnabled: true,
     })).toBe(path.resolve(sharedRoot));
   });

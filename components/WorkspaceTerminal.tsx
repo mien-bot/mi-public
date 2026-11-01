@@ -2,6 +2,7 @@
 
 import { TerminalPanel } from "@/components/TerminalPanel";
 import { ProjectPdfFinder } from "@/components/ProjectPdfFinder";
+import { CadConnections, CadPairingBanner } from "@/components/CadConnections";
 import { ResolvedTerminalWorkspace } from "./ResolvedTerminalWorkspace";
 import { useEffect, useState } from "react";
 import { OpenTerminalButton } from "./OpenTerminalButton";
@@ -47,7 +48,9 @@ function RememberedWorkspaceTerminal({ workspace }: { workspace: string }) {
   if (session === null) return <div role="status" className="p-4 text-sm text-muted-foreground">Opening terminal…</div>;
   return (
     <div className="flex h-full min-h-0 flex-col overflow-y-auto rounded-xl border border-border bg-background shadow-[0_12px_40px_-20px_#000]">
+      {/^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <CadPairingBanner workspace={workspace} session={session} />}
       {/^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <div className="shrink-0 border-b border-border p-2"><ProjectPdfFinder slug={workspace.slice(9)} /></div>}
+      {/^projects\/[a-z0-9][a-z0-9-]*$/.test(workspace) && <CadConnections key={workspace} workspace={workspace} />}
       {desktop && (
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border mi-terminal-titlebar px-3 py-2">
           <div className="flex flex-wrap gap-1" aria-label="Terminal sessions">
@@ -64,7 +67,7 @@ function RememberedWorkspaceTerminal({ workspace }: { workspace: string }) {
         </div>
       )}
       {/* Short hosts scroll the tools and shell instead of collapsing the PTY viewport. */}
-      <div className="min-h-[24rem] flex-1 shrink-0">
+      <div className="min-h-[max(24rem,70dvh)] flex-1 shrink-0">
         <WorkspaceSession key={`${workspace}:${session}`} workspace={workspace} session={session} />
       </div>
     </div>

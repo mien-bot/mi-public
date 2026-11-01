@@ -213,6 +213,12 @@ describe("Neon deck graphic style", () => {
   });
 });
 
+describe("loading drawing motion", () => {
+  it("draws only with motion allowed, leaving a complete static plan otherwise", () => {
+    expect(css).toMatch(/@media \(prefers-reduced-motion: no-preference\)[\s\S]*?:root:not\(\[data-mi-motion="minimal"\]\)[\s\S]*?\.mi-plan-outline/);
+  });
+});
+
 describe("route-enter fill mode", () => {
   it("never retains a transform on a wrapper, which would trap position: fixed children", () => {
     // The documented bug: `forwards`/`both` on .animate-route-enter made the wrapper the

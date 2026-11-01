@@ -51,7 +51,7 @@ describe("previewMigration", () => {
     const root = temporaryRoot();
     const source = path.join(root, "source");
     fs.mkdirSync(source, { recursive: true });
-    fs.writeFileSync(path.join(source, "project.yaml"), "name: Demo\ndropbox_path: \"1.00 PROJECTS/Demo\"\n", "utf8");
+    fs.writeFileSync(path.join(source, "project.yaml"), "name: Demo\ndropbox_path: \"Projects/Demo\"\n", "utf8");
     fs.writeFileSync(path.join(source, "details.yaml"), "name: Demo\n", "utf8");
 
     const preview = previewMigration(source, path.join(root, "dest"));

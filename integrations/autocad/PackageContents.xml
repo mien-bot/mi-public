@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ApplicationPackage SchemaVersion="1.0" AppVersion="0.1.0" Name="Mi CAD Native" Description="Mi native project CAD connection"
+  Author="STUDIO" ProductCode="{5C1D5E0B-7E7A-4B62-9C57-3E9B1C0A2D27}" UpgradeCode="{9A1E2F44-6D0B-4C37-8E55-0F4D7C2B6A19}">
+  <CompanyDetails Name="STUDIO" />
+  <RuntimeRequirements Platform="AutoCAD" SeriesMin="R26.0" SeriesMax="R26.0" OS="Win64" SupportPath="./Contents" />
+  <Components>
+    <ComponentEntry AppName="MiCadNative" ModuleName="./Contents/Mi.AutoCAD.dll" LoadOnAutoCADStartup="true" AppDescription="Mi native project CAD connection" />
+  </Components>
+</ApplicationPackage>

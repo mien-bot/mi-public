@@ -14,8 +14,8 @@ This repository is a sanitized source edition. It starts with empty data folders
 - **Manage incoming work:** track leads, meeting notes, draft proposals, and permit QA/QC engagements.
 - **Review documents:** work with PDF previews, drawing indexes, markup records, and document review workflows.
 - **Keep knowledge together:** maintain local Markdown/YAML records and searchable project context.
-- **Plan your work:** use project schedules, a personal workspace, and review inboxes for proposed changes.
-- **Connect optional services:** link explicitly selected Notion records and locally synced Dropbox folders.
+- **Plan your work:** use project schedules, year-view timelines, priority tiers, contract and payment tracking, slip warnings, a personal workspace, and review inboxes for proposed changes.
+- **Connect optional services:** link explicitly selected Notion records, locally synced Dropbox folders, and a read-only Google Calendar. Native Revit and AutoCAD connections let reviewed agent edits reach an open model or drawing; the add-ins need your own build and code-signing certificate.
 - **Use optional AI tools:** draft summaries, plans, and proposed edits with supported agent connections. The Electron desktop also provides project terminals and pop-out workspaces.
 
 AI proposals and external writes use review and confirmation boundaries. Project identities and external folder/page mappings must be supplied by the user.

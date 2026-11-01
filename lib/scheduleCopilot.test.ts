@@ -7,7 +7,7 @@ describe("schedule copilot replies", () => {
   it("parses a reschedule proposal", () => {
     const reply = parseScheduleCopilotReply(`Sure, I'll move that.
 \`\`\`mi-schedule-proposals
-{"version":1,"proposals":[{"id":"move-riya","title":"Move Riya Meeting","reason":"Requested by user","kind":"schedule-reschedule","data":{"eventPageId":"${PAGE_ID}","name":"Riya Meeting","currentDate":"2026-07-17","newDate":"2026-07-24"}}]}
+{"version":1,"proposals":[{"id":"move-jordan","title":"Move Jordan Meeting","reason":"Requested by user","kind":"schedule-reschedule","data":{"eventPageId":"${PAGE_ID}","name":"Jordan Meeting","currentDate":"2026-07-17","newDate":"2026-07-24"}}]}
 \`\`\``);
 
     expect(reply.text).toBe("Sure, I'll move that.");
@@ -48,7 +48,7 @@ describe("schedule copilot replies", () => {
 
   it("rejects an invented Notion page id", () => {
     const reply = parseScheduleCopilotReply(`\`\`\`mi-schedule-proposals
-{"version":1,"proposals":[{"id":"move-riya","title":"Move Riya Meeting","reason":"x","kind":"schedule-reschedule","data":{"eventPageId":"not-a-real-id","name":"Riya Meeting","currentDate":"2026-07-17","newDate":"2026-07-24"}}]}
+{"version":1,"proposals":[{"id":"move-jordan","title":"Move Jordan Meeting","reason":"x","kind":"schedule-reschedule","data":{"eventPageId":"not-a-real-id","name":"Jordan Meeting","currentDate":"2026-07-17","newDate":"2026-07-24"}}]}
 \`\`\``);
 
     expect(reply.proposals).toHaveLength(0);

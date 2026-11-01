@@ -107,7 +107,7 @@ describe("schedule agent context", () => {
   });
 
   it("tells the agent to stop rather than propose anything when no snapshot exists yet", () => {
-    const prompt = buildFirmScopedAgentPrompt("Move the Riya meeting", "schedule", { dataRoot: tempDataRoot() });
+    const prompt = buildFirmScopedAgentPrompt("Move the Jordan meeting", "schedule", { dataRoot: tempDataRoot() });
     expect(prompt).toContain("No cached STUDIO Schedule snapshot is available yet");
     expect(prompt).toContain("do not propose any change");
   });
@@ -123,7 +123,7 @@ describe("schedule agent context", () => {
       entries: [
         {
           notion_page_id: "abc123",
-          name: "Riya Meeting",
+          name: "Jordan Meeting",
           date: "2026-07-17T09:00:00-05:00",
           date_end: "2026-07-17T10:00:00-05:00",
           start_time: "2026-07-17T13:33:00-05:00",
@@ -137,12 +137,12 @@ describe("schedule agent context", () => {
       ],
     }));
 
-    const prompt = buildFirmScopedAgentPrompt("Move the Riya meeting to next Friday", "schedule", {
+    const prompt = buildFirmScopedAgentPrompt("Move the Jordan meeting to next Friday", "schedule", {
       dataRoot: root,
       timezone: "America/Chicago",
     });
     expect(prompt).toContain("id=abc123");
-    expect(prompt).toContain("Riya Meeting");
+    expect(prompt).toContain("Jordan Meeting");
     expect(prompt).toContain("Date: 2026-07-17T09:00:00-05:00 to 2026-07-17T10:00:00-05:00");
     expect(prompt).toContain("Never invent or guess an id");
     expect(prompt).toContain("only change its Date range or status");
@@ -150,7 +150,7 @@ describe("schedule agent context", () => {
     expect(prompt).toContain("newStartTime/newEndTime");
     expect(prompt).toContain("calendar timezone is America/Chicago");
     expect(prompt).toContain("mi-schedule-proposals");
-    expect(prompt).toContain("Move the Riya meeting to next Friday");
+    expect(prompt).toContain("Move the Jordan meeting to next Friday");
   });
 
   it("distinguishes a valid empty schedule window from a missing snapshot", () => {

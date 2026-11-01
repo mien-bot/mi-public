@@ -255,10 +255,14 @@ export async function PATCH(
         applied: true,
       });
     }
+    const { priority: storedPriority, ...rest } = milestone;
+    const requestedPriority = ["critical", "high", "normal"].includes(body.priority) ? body.priority : undefined;
+    const priority = body.priority === "auto" ? undefined : requestedPriority ?? storedPriority;
     schedule.milestones[index] = {
-      ...milestone,
+      ...rest,
       planned_date: body.plannedDate,
       actual_date: actualDate,
+      ...(priority ? { priority } : {}),
     };
     writeProjectSchedule(slug, schedule.milestones, { expectedHash });
     refresh(slug);

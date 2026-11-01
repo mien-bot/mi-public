@@ -224,7 +224,7 @@ describe("buildWorkspaceAnalysis", () => {
     const analysis = buildWorkspaceAnalysis(input({
       meetings: [meeting({
         action_items: [
-          { description: "Test the Revit licence", owner: "Tommy", due_date: "2026-09-01" },
+          { description: "Test the Revit licence", owner: "Sam", due_date: "2026-09-01" },
           { description: "Verify RT4 allows three meters", owner: "Alex", due_date: "2026-08-10" },
         ],
       })],

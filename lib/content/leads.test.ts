@@ -12,13 +12,22 @@ describe("lead readers", () => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "mi-leads-read-"));
     leadsDir = path.join(root, "leads");
     fs.mkdirSync(path.join(leadsDir, "a-lead", "site-visits"), { recursive: true });
+    fs.writeFileSync(path.join(leadsDir, "a-lead", "lead.yaml"), "name: A lead\n");
   });
 
   afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
 
   it("lists lead slugs as directories, not files", () => {
     fs.mkdirSync(path.join(leadsDir, "b-lead"));
+    fs.writeFileSync(path.join(leadsDir, "b-lead", "lead.yaml"), "name: B lead\n");
     expect(getLeadSlugs(leadsDir).sort()).toEqual(["a-lead", "b-lead"]);
+  });
+
+  it("excludes deletion backups and incomplete folders from lead discovery", () => {
+    fs.mkdirSync(path.join(leadsDir, ".mi-backups", "deleted-lead"), { recursive: true });
+    fs.writeFileSync(path.join(leadsDir, ".mi-backups", "lead.yaml"), "name: Backup\n");
+    fs.mkdirSync(path.join(leadsDir, "incomplete"));
+    expect(getLeadSlugs(leadsDir)).toEqual(["a-lead"]);
   });
 
   it("returns no last-visit date when no site visits are logged yet", () => {

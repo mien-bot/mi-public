@@ -4,7 +4,7 @@ const { generated, hash } = require("./agentHarness");
 
 // This one shared reference is human-authorized. Never discover it by scanning
 // engagement siblings, or grant agents access to the containing Dropbox folder.
-const SOURCE_RELATIVE_PATH = "1.00 PROJECTS/PERMIT QAQC/CHICAGO-PERMIT-APPLICATION-GUIDANCE.md";
+const SOURCE_RELATIVE_PATH = "Projects/PERMIT QAQC/CHICAGO-PERMIT-APPLICATION-GUIDANCE.md";
 const REFERENCE_PATH = path.join("references", "chicago-permit-application-guidance.md");
 const BUNDLED_PATH = path.join(__dirname, "..", "installer", "agent-harness", REFERENCE_PATH);
 const MAX_BYTES = 256 * 1024;
