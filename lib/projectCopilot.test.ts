@@ -498,10 +498,10 @@ describe("patch proposals carry only the keys that were submitted", () => {
     const result = projectCopilotProposalSchema.safeParse({
       id: "sched-bad-time",
       kind: "schedule-item",
-      title: "SBIF rollout webinar",
+      title: "Program rollout webinar",
       reason: "External date driving the campaign week.",
       data: {
-        name: "SBIF rollout webinar",
+        name: "Program rollout webinar",
         date: "2026-09-02",
         type: "Work Session",
         start_time: "13:00",
@@ -519,10 +519,10 @@ describe("patch proposals carry only the keys that were submitted", () => {
     const result = projectCopilotProposalSchema.safeParse({
       id: "sched-good-time",
       kind: "schedule-item",
-      title: "SBIF rollout webinar",
+      title: "Program rollout webinar",
       reason: "External date driving the campaign week.",
       data: {
-        name: "SBIF rollout webinar",
+        name: "Program rollout webinar",
         date: "2026-09-02",
         type: "Work Session",
         start_time: "2026-09-02T13:00:00-05:00",
