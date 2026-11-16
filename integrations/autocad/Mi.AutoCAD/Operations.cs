@@ -1,10 +1,7 @@
 using Autodesk.AutoCAD.ApplicationServices;
 using Autodesk.AutoCAD.DatabaseServices;
 using Autodesk.AutoCAD.Geometry;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using AcApp = Autodesk.AutoCAD.ApplicationServices.Application;
 
@@ -18,12 +15,15 @@ internal sealed class DocumentState
 internal sealed record Binding(string Document, string Name, string? Approval);
 internal sealed record Proposal(string Workspace, string Document, long Revision, DateTime Expires, JsonObject Arguments, string Summary);
 
-internal sealed class Operations
+internal sealed partial class Operations
 {
     // Keyed by the native document pointer: the entry is dropped when AutoCAD destroys the
     // document, so a reopened file always receives a new identity and needs a new pairing.
     private readonly Dictionary<IntPtr, DocumentState> documents = new();
+    // Keyed by project and drawing: one project can read several drawings, while a drawing belongs
+    // to one project at a time.
     private readonly Dictionary<string, Binding> bindings = new();
+    private static string Key(string workspace, string document) => workspace + "|" + document;
     private readonly Dictionary<string, Proposal> proposals = new();
     private bool subscribed;
     internal void Reset() { bindings.Clear(); proposals.Clear(); }
@@ -70,9 +70,10 @@ internal sealed class Operations
         var method = Text(request, "method");
         var manager = AcApp.DocumentManager;
         if (method == "discover")
-            return J(new { version = AcApp.Version.ToString(), documents = manager.Cast<Document>().Select(d => new { info = DocumentInfo(d, State(d)), busy = Busy(d) }).Select(d => d.info).ToArray() });
+            return J(new { version = AcApp.Version.ToString(), features = new[] { "multi-drawing", "trusted-connect", "views", "open-drawing", "linked-edits" }, documents = manager.Cast<Document>().Select(d => new { info = DocumentInfo(d, State(d)), busy = Busy(d) }).Select(d => d.info).ToArray() });
         var workspace = Text(request, "workspace");
         if (!Regex.IsMatch(workspace, @"^projects/[a-z0-9]+(?:-[a-z0-9]+)*$")) throw new ArgumentException("Invalid project workspace.");
+        if (method == "open") return Open(request, workspace, work);
         var documentId = Text(request, "document");
         var doc = Find(documentId) ?? throw new InvalidOperationException("The drawing was closed or reopened. Rebind it in Mi.");
         // Commands, dialogs and scripts pump messages, so this can run mid-command. Nothing touches the drawing then.
@@ -80,22 +81,27 @@ internal sealed class Operations
         if (method == "bind")
         {
             work.Check();
-            var text = $"Connect {Path.GetFileName(doc.Name)} to {workspace}?\n\nDrawing: {(doc.IsNamedDrawing ? doc.Name : "Unsaved drawing")}\n\nAnswer Yes only if you just pressed Connect in Mi. This grants read access to this drawing for that project and lets Mi show you each edit for review in its terminal window. Every edit still needs your approval. Any previous project binding for this drawing is revoked.";
-            if (!Confirm.Ask("Bind drawing to Mi project", text, 50)) throw new InvalidOperationException("Connection declined. Nothing changed.");
+            var text = $"Connect {Path.GetFileName(doc.Name)} to {workspace}?\n\nDrawing: {(doc.IsNamedDrawing ? doc.Name : "Unsaved drawing")}\n\nAnswer Yes only if you just pressed Connect in Mi. This grants read access to this drawing for that project and lets Mi show you each edit for review in its terminal window. Every edit still needs your approval. Other drawings already connected to this project stay connected. Any previous project binding for this drawing is revoked.";
+            if (!Trusted(request, workspace, documentId) && !Confirm.Ask("Bind drawing to Mi project", text, 50)) throw new InvalidOperationException("Connection declined. Nothing changed.");
             work.Check();
             foreach (var key in bindings.Where(p => p.Value.Document == documentId).Select(p => p.Key).ToArray()) bindings.Remove(key);
             var approval = request["approval"]?.GetValue<string>();
-            bindings[workspace] = new Binding(documentId, doc.Name, approval != null && Regex.IsMatch(approval, "^[a-f0-9]{64}$") ? approval : null);
-            proposals.Clear();
+            bindings[Key(workspace, documentId)] = new Binding(documentId, doc.Name, approval != null && Regex.IsMatch(approval, "^[a-f0-9]{64}$") ? approval : null);
+            foreach (var key in proposals.Where(p => p.Value.Document == documentId).Select(p => p.Key).ToArray()) proposals.Remove(key);
             return J(DocumentInfo(doc, State(doc)));
         }
-        if (!bindings.TryGetValue(workspace, out var bound) || bound.Document != documentId) throw new InvalidOperationException("This project is not paired with this drawing. Use Set up MCP in Mi.");
+        if (!bindings.TryGetValue(Key(workspace, documentId), out var bound)) throw new InvalidOperationException("This project is not paired with this drawing. Use Set up MCP in Mi.");
         if (!string.Equals(bound.Name, doc.Name, StringComparison.OrdinalIgnoreCase))
         {
-            bindings.Remove(workspace);
+            bindings.Remove(Key(workspace, documentId));
             throw new InvalidOperationException("The drawing was saved under another name. Rebind it in Mi.");
         }
-        if (method == "unbind") { bindings.Remove(workspace); proposals.Clear(); return J(new { disconnected = true }); }
+        if (method == "unbind")
+        {
+            bindings.Remove(Key(workspace, documentId));
+            foreach (var key in proposals.Where(p => p.Value.Workspace == workspace && p.Value.Document == documentId).Select(p => p.Key).ToArray()) proposals.Remove(key);
+            return J(new { disconnected = true });
+        }
         var args = request["arguments"] as JsonObject ?? new JsonObject();
         return method switch
         {
@@ -105,6 +111,69 @@ internal sealed class Operations
             "apply" => Apply(doc, workspace, args, work, ApprovedInMi(request, bound)),
             _ => throw new ArgumentException("Unknown native operation.")
         };
+    }
+
+    /// <summary>
+    /// A connection this AutoCAD has, in effect, already been asked about. Mi sends trust only after the
+    /// person approved this exact drawing in Mi's own window, and the value is the approval secret Mi
+    /// was given when they connected another drawing of the same project here, through this dialog.
+    /// Nothing else has that secret, so it stands for a person who already trusts Mi with this project
+    /// in this AutoCAD. A drawing that belongs to another project still asks, since connecting moves it.
+    /// </summary>
+    private bool Trusted(JsonObject request, string workspace, string documentId)
+    {
+        var trust = request["trust"]?.GetValue<string>();
+        if (trust == null || !Regex.IsMatch(trust, "^[a-f0-9]{64}$")) return false;
+        var prefix = workspace + "|";
+        if (bindings.Any(p => p.Value.Document == documentId && !p.Key.StartsWith(prefix, StringComparison.Ordinal))) return false;
+        var supplied = Encoding.UTF8.GetBytes(trust);
+        return bindings.Where(p => p.Key.StartsWith(prefix, StringComparison.Ordinal) && p.Value.Approval != null)
+            .Any(p => Compat.FixedTimeEquals(supplied, Encoding.UTF8.GetBytes(p.Value.Approval!)));
+    }
+
+    /// <summary>The same proof as <see cref="Trusted"/>, for a file that is not open yet: any drawing of this project paired here.</summary>
+    private bool TrustedForWorkspace(JsonObject request, string workspace)
+    {
+        var trust = request["trust"]?.GetValue<string>();
+        if (trust == null || !Regex.IsMatch(trust, "^[a-f0-9]{64}$")) return false;
+        var prefix = workspace + "|";
+        var supplied = Encoding.UTF8.GetBytes(trust);
+        return bindings.Where(p => p.Key.StartsWith(prefix, StringComparison.Ordinal) && p.Value.Approval != null)
+            .Any(p => Compat.FixedTimeEquals(supplied, Encoding.UTF8.GetBytes(p.Value.Approval!)));
+    }
+
+    /// <summary>
+    /// Opens a drawing file for a project and pairs it, in one step, so a person answers at most once.
+    /// Mi checks that the file is inside the project's confirmed folder and asks the person in its own
+    /// window first. Without Mi's proof that they already trust it with this project here, AutoCAD asks
+    /// as well, because any program of this user can reach this pipe. A file already open is refused,
+    /// so Mi connects that one instead of opening a second copy.
+    /// </summary>
+    private JsonNode Open(JsonObject request, string workspace, Work work)
+    {
+        var path = Text(request, "path");
+        if (path.Length > 1000 || !Path.IsPathRooted(path) || !string.Equals(Path.GetExtension(path), ".dwg", StringComparison.OrdinalIgnoreCase))
+            throw new ArgumentException("Name the full path of a .dwg file.");
+        var full = Path.GetFullPath(path);
+        if (!File.Exists(full)) throw new InvalidOperationException("That drawing file was not found.");
+        var manager = AcApp.DocumentManager;
+        var documentsOpen = manager.Cast<Document>().ToArray();
+        if (documentsOpen.Any(Busy)) throw new InvalidOperationException("AutoCAD is busy with a command or dialog. Nothing was opened; finish it and try again.");
+        if (documentsOpen.Any(d => d.IsNamedDrawing && string.Equals(Path.GetFullPath(d.Name), full, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("That drawing is already open in AutoCAD. List the drawings again and connect it.");
+        var readOnly = request["readOnly"]?.GetValue<bool>() ?? false;
+        work.Check();
+        var text = $"Open {Path.GetFileName(full)} for {workspace}?\n\nDrawing: {full}\n{(readOnly ? "Opens read-only." : "Opens for editing.")}\n\nAnswer Yes only if you just approved opening it in Mi. AutoCAD opens it as if you had opened it, and Mi connects it to that project. Every edit still needs your approval. Nothing is saved.";
+        if (!TrustedForWorkspace(request, workspace) && !Confirm.Ask("Open drawing for Mi project", text, 50)) throw new InvalidOperationException("Opening declined. Nothing changed.");
+        work.Check();
+        Document doc;
+        try { doc = manager.Open(full, readOnly); }
+        catch (System.Exception ex) { throw new InvalidOperationException($"AutoCAD could not open {Path.GetFileName(full)}: {ex.Message} Nothing was connected."); }
+        var state = State(doc);
+        foreach (var key in bindings.Where(p => p.Value.Document == state.Id).Select(p => p.Key).ToArray()) bindings.Remove(key);
+        var approval = request["approval"]?.GetValue<string>();
+        bindings[Key(workspace, state.Id)] = new Binding(state.Id, doc.Name, approval != null && Regex.IsMatch(approval, "^[a-f0-9]{64}$") ? approval : null);
+        return J(DocumentInfo(doc, state));
     }
 
     private static JsonNode Page<T>(IEnumerable<T> source, JsonObject args)
@@ -167,6 +236,7 @@ internal sealed class Operations
                 var lines = m.GetLeaderIndexes().Cast<int>().SelectMany(i => m.GetLeaderLineIndexes(i).Cast<int>()).ToArray();
                 return new { text = m.MText?.Text, textHeight = m.TextHeight, arrows = lines.Select(i => P(m.GetFirstVertex(i))).ToArray(), landings = lines.Select(i => P(m.GetLastVertex(i))).ToArray() };
             case Hatch h: return new { pattern = h.PatternName, solid = h.IsSolidFill, area = TryArea(h), associative = h.Associative };
+            case Table table: return TableInfo(table); // Before BlockReference, which Table derives from.
             case BlockReference b:
                 var definition = (BlockTableRecord)tr.GetObject(b.DynamicBlockTableRecord, OpenMode.ForRead);
                 var attributes = b.AttributeCollection.Cast<ObjectId>().Take(100).Select(id => (AttributeReference)tr.GetObject(id, OpenMode.ForRead)).Select(r => new { tag = r.Tag, value = r.TextString, handle = Handle(r.ObjectId) }).ToArray();
@@ -190,7 +260,7 @@ internal sealed class Operations
                 var active = doc == AcApp.DocumentManager.MdiActiveDocument;
                 return J(new
                 {
-                    document = DocumentInfo(doc, State(doc)), application = AcApp.Version.ToString(),
+                    document = DocumentInfo(doc, State(doc)), application = AcApp.Version.ToString(), release = $"AutoCAD {Target.Year}", addinVersion = Target.AddinVersion,
                     units = new { insunits = db.Insunits.ToString(), lengthFormat = db.Lunits, lengthPrecision = db.Luprec, measurement = db.Measurement.ToString() },
                     coordinateSystem = "All Mi coordinates and offsets are WCS drawing units. Check ucs before comparing with values the person sees.",
                     ucs = new { origin = P(db.Ucsorg), xAxis = V(db.Ucsxdir), yAxis = V(db.Ucsydir), isWorld = db.Ucsorg == Point3d.Origin && db.Ucsxdir == Vector3d.XAxis && db.Ucsydir == Vector3d.YAxis },
@@ -212,17 +282,25 @@ internal sealed class Operations
             case "blocks":
                 return Page(((BlockTable)tr.GetObject(db.BlockTableId, OpenMode.ForRead)).Cast<ObjectId>().Select(id => (BlockTableRecord)tr.GetObject(id, OpenMode.ForRead))
                     .Where(b => !b.IsLayout && !b.IsAnonymous)
-                    .Select(b => new { handle = Handle(b.ObjectId), name = b.Name, isXref = b.IsFromExternalReference, path = b.IsFromExternalReference ? b.PathName : null, hasAttributes = b.HasAttributeDefinitions, references = b.GetBlockReferenceIds(true, false).Count }), args);
+                    .Select(b => new { handle = Handle(b.ObjectId), name = b.Name, isXref = b.IsFromExternalReference, path = b.IsFromExternalReference ? b.PathName : null, hasAttributes = b.HasAttributeDefinitions,
+                        attributeTags = b.HasAttributeDefinitions ? AttributeDefinitions(tr, b).Select(d => d.Tag).ToArray() : [], references = b.GetBlockReferenceIds(true, false).Count }), args);
+            case "views":
+                return Page(Viewports(db, tr).Concat(NamedViews(db, tr)), args);
+            case "xrefs":
+                return J(new { xrefs = Xrefs(db, tr), units = db.Insunits.ToString() });
             case "entities":
                 var layer = args["layer"]?.GetValue<string>();
                 var type = args["type"]?.GetValue<string>();
                 var search = args["text"]?.GetValue<string>();
+                var area = Area(args);
                 var space = (BlockTableRecord)tr.GetObject(Space(db, tr, args["space"]?.GetValue<string>()), OpenMode.ForRead);
                 var entities = space.Cast<ObjectId>().Take(100_000)
                     .Where(id => type == null || id.ObjectClass.DxfName.Equals(type, StringComparison.OrdinalIgnoreCase))
                     .Select(id => (Entity)tr.GetObject(id, OpenMode.ForRead))
                     .Where(e => layer == null || e.Layer.Equals(layer, StringComparison.OrdinalIgnoreCase))
-                    .Where(e => search == null || (e is DBText t && t.TextString.Contains(search, StringComparison.OrdinalIgnoreCase)) || (e is MText m && m.Text.Contains(search, StringComparison.OrdinalIgnoreCase)));
+                    .Where(e => search == null || (e is DBText t && t.TextString.Contains(search, StringComparison.OrdinalIgnoreCase)) || (e is MText m && m.Text.Contains(search, StringComparison.OrdinalIgnoreCase))
+                        || (e is MLeader l && l.ContentType == ContentType.MTextContent && (l.MText?.Text ?? "").Contains(search, StringComparison.OrdinalIgnoreCase)))
+                    .Where(e => area == null || Overlaps(e, area));
                 return Page(entities.Select(e => Brief(e, tr)), args);
             case "entity":
                 var entity = tr.GetObject(Resolve(db, Text(args, "handle")), OpenMode.ForRead) as Entity ?? throw new ArgumentException("That handle is not an entity.");
@@ -231,12 +309,116 @@ internal sealed class Operations
         }
     }
 
+    /// <summary>An area to read, [minX, minY, maxX, maxY] in the queried space's units; null reads the whole space.</summary>
+    private static double[]? Area(JsonObject args)
+    {
+        if (args["area"] is not JsonArray values) return null;
+        if (values.Count != 4) throw new ArgumentException("area must be [minX, minY, maxX, maxY].");
+        var a = values.Select(v => v!.GetValue<double>()).ToArray();
+        if (a.Any(v => !Compat.IsFinite(v) || Math.Abs(v) > 1e12) || a[0] >= a[2] || a[1] >= a[3]) throw new ArgumentException("area must be finite [minX, minY, maxX, maxY] with each min below its max.");
+        return a;
+    }
+    // Crossing, like a right-to-left window: anything that reaches into the area counts.
+    private static bool Overlaps(Entity e, double[] area)
+    {
+        if (!e.Bounds.HasValue) return false;
+        var b = e.Bounds.Value;
+        return b.MaxPoint.X >= area[0] && b.MinPoint.X <= area[2] && b.MaxPoint.Y >= area[1] && b.MinPoint.Y <= area[3];
+    }
+    private static double R(double value) => Math.Round(value, 6);
+    /// <summary>
+    /// The WCS rectangle a view shows, when it looks straight down with no twist. DCS has its origin at
+    /// the target and, for such a view, the same X and Y axes as WCS. Anything else (an elevation set up
+    /// as a 3D view, a twisted plan) has no single rectangle, so it reports null and its raw view.
+    /// </summary>
+    private static double[]? PlanArea(Point3d target, Vector3d direction, double twist, Point2d center, double width, double height)
+    {
+        if (direction.Length < 1e-12 || direction.GetNormal().Z < 1 - 1e-9 || Math.Abs(Math.Sin(twist)) > 1e-9 || Math.Cos(twist) < 0) return null;
+        double x = target.X + center.X, y = target.Y + center.Y;
+        return [R(x - width / 2), R(y - height / 2), R(x + width / 2), R(y + height / 2)];
+    }
+    /// <summary>Short text in a layout, with where it sits, so a viewport can be matched to the title drawn next to it.</summary>
+    private static List<(Point3d At, string Text)> Labels(BlockTableRecord space, Transaction tr)
+    {
+        var labels = new List<(Point3d, string)>();
+        foreach (ObjectId id in space)
+        {
+            if (labels.Count >= 5000) break;
+            var entity = tr.GetObject(id, OpenMode.ForRead) as Entity;
+            switch (entity)
+            {
+                case DBText t: labels.Add((t.Position, t.TextString)); break;
+                case MText m: labels.Add((m.Location, m.Text)); break;
+                case BlockReference b when b is not Table:
+                    foreach (ObjectId attribute in b.AttributeCollection)
+                        if (tr.GetObject(attribute, OpenMode.ForRead) is AttributeReference r && !r.Invisible) labels.Add((r.Position, r.TextString));
+                    break;
+            }
+        }
+        return labels.Where(l => !string.IsNullOrWhiteSpace(l.Item2) && l.Item2.Length <= 120).Select(l => (l.Item1, l.Item2.Trim())).ToList();
+    }
+    private static IEnumerable<object> Viewports(Database db, Transaction tr)
+    {
+        foreach (var layout in Layouts(db, tr).OrderBy(l => l.Tab))
+        {
+            if (layout.Name.Equals("Model", StringComparison.OrdinalIgnoreCase)) continue;
+            var space = (BlockTableRecord)tr.GetObject(layout.Block, OpenMode.ForRead);
+            List<(Point3d At, string Text)>? labels = null;
+            // The layout's own paper viewport shows the sheet, not the model. An initialized layout names it
+            // first in GetViewports; otherwise AutoCAD has kept it as the layout's first viewport entity.
+            var listed = ((Layout)tr.GetObject(space.LayoutId, OpenMode.ForRead)).GetViewports();
+            var sheet = listed != null && listed.Count > 0 ? listed[0] : ObjectId.Null;
+            var first = true;
+            foreach (ObjectId id in space)
+            {
+                if (tr.GetObject(id, OpenMode.ForRead) is not Viewport vp) continue;
+                var overall = sheet.IsNull ? first : id == sheet;
+                first = false;
+                if (overall) continue;
+                labels ??= Labels(space, tr);
+                double w = vp.Width, h = vp.Height, cx = vp.CenterPoint.X, cy = vp.CenterPoint.Y;
+                var modelHeight = vp.ViewHeight;
+                var modelWidth = h > 0 ? modelHeight * w / h : 0;
+                // Titles usually sit just outside a viewport, so the nearest text within a margin is offered, nearest first.
+                var margin = 0.3 * Math.Max(w, h);
+                double Distance(Point3d p) => Math.Sqrt(Math.Pow(Math.Max(0, Math.Abs(p.X - cx) - w / 2), 2) + Math.Pow(Math.Max(0, Math.Abs(p.Y - cy) - h / 2), 2));
+                var near = labels.Select(l => (l.Text, Distance: Distance(l.At))).Where(l => l.Distance <= margin).OrderBy(l => l.Distance).Select(l => l.Text).Distinct().Take(6).ToArray();
+                yield return new
+                {
+                    kind = "viewport", handle = Handle(vp.ObjectId), layout = layout.Name, on = vp.On, locked = vp.Locked, layer = vp.Layer,
+                    scale = vp.CustomScale > 0 ? R(vp.CustomScale) : (double?)null,
+                    paperArea = new[] { R(cx - w / 2), R(cy - h / 2), R(cx + w / 2), R(cy + h / 2) },
+                    modelArea = PlanArea(vp.ViewTarget, vp.ViewDirection, vp.TwistAngle, vp.ViewCenter, modelWidth, modelHeight),
+                    viewCenter = new[] { R(vp.ViewCenter.X), R(vp.ViewCenter.Y) }, viewTarget = P(vp.ViewTarget), viewDirection = V(vp.ViewDirection), twistDegrees = R(vp.TwistAngle * 180 / Math.PI),
+                    modelSize = new[] { R(modelWidth), R(modelHeight) }, clipped = vp.NonRectClipOn, frozenLayerCount = vp.GetFrozenLayers().Count, nearbyText = near
+                };
+            }
+        }
+    }
+    private static IEnumerable<object> NamedViews(Database db, Transaction tr)
+    {
+        var table = (ViewTable)tr.GetObject(db.ViewTableId, OpenMode.ForRead);
+        foreach (ObjectId id in table)
+        {
+            var view = (ViewTableRecord)tr.GetObject(id, OpenMode.ForRead);
+            var layout = "Model";
+            if (view.IsPaperspaceView && !view.Layout.IsNull && tr.GetObject(view.Layout, OpenMode.ForRead) is Layout owner) layout = owner.LayoutName;
+            yield return new
+            {
+                kind = "named", name = view.Name, category = string.IsNullOrEmpty(view.CategoryName) ? null : view.CategoryName, space = layout,
+                area = PlanArea(view.Target, view.ViewDirection, view.ViewTwist, view.CenterPoint, view.Width, view.Height),
+                viewCenter = new[] { R(view.CenterPoint.X), R(view.CenterPoint.Y) }, viewTarget = P(view.Target), viewDirection = V(view.ViewDirection), twistDegrees = R(view.ViewTwist * 180 / Math.PI),
+                size = new[] { R(view.Width), R(view.Height) }
+            };
+        }
+    }
+
     private static Point3d Point(JsonObject args, string key)
     {
         var values = args[key] as JsonArray;
         if (values?.Count != 3) throw new ArgumentException($"{key} must contain three WCS numbers.");
         var a = values.Select(v => v!.GetValue<double>()).ToArray();
-        if (a.Any(v => !double.IsFinite(v) || Math.Abs(v) > 1e9)) throw new ArgumentException($"{key} is not finite or is too large.");
+        if (a.Any(v => !Compat.IsFinite(v) || Math.Abs(v) > 1e9)) throw new ArgumentException($"{key} is not finite or is too large.");
         return new Point3d(a);
     }
     private static Point2d[] Vertices(JsonObject args)
@@ -248,7 +430,7 @@ internal sealed class Operations
             var pair = v as JsonArray;
             if (pair?.Count != 2) throw new ArgumentException("Each point must be [x, y].");
             var a = pair.Select(n => n!.GetValue<double>()).ToArray();
-            if (a.Any(n => !double.IsFinite(n) || Math.Abs(n) > 1e9)) throw new ArgumentException("Point is not finite or is too large.");
+            if (a.Any(n => !Compat.IsFinite(n) || Math.Abs(n) > 1e9)) throw new ArgumentException("Point is not finite or is too large.");
             return new Point2d(a);
         }).ToArray();
         if (points.Zip(points.Skip(1)).Any(p => p.First.GetDistanceTo(p.Second) < 1e-9)) throw new ArgumentException("Adjacent points must differ.");
@@ -257,7 +439,7 @@ internal sealed class Operations
     private static double Elevation(JsonObject args)
     {
         var value = args["elevation"]?.GetValue<double>() ?? 0;
-        if (!double.IsFinite(value) || Math.Abs(value) > 1e9) throw new ArgumentException("elevation is not finite or is too large.");
+        if (!Compat.IsFinite(value) || Math.Abs(value) > 1e9) throw new ArgumentException("elevation is not finite or is too large.");
         return value;
     }
     private static double[] Bulges(JsonObject args, int count)
@@ -265,19 +447,19 @@ internal sealed class Operations
         if (args["bulges"] is not JsonArray values) return new double[count];
         if (values.Count != count) throw new ArgumentException("bulges needs one value per point.");
         var bulges = values.Select(v => v!.GetValue<double>()).ToArray();
-        if (bulges.Any(b => !double.IsFinite(b) || Math.Abs(b) > 1000)) throw new ArgumentException("A bulge is not finite or is too large.");
+        if (bulges.Any(b => !Compat.IsFinite(b) || Math.Abs(b) > 1000)) throw new ArgumentException("A bulge is not finite or is too large.");
         return bulges;
     }
     private static double Positive(JsonObject args, string key)
     {
         var value = args[key]?.GetValue<double>() ?? throw new ArgumentException($"{key} is required.");
-        if (!double.IsFinite(value) || value <= 0 || value > 1e9) throw new ArgumentException($"{key} must be positive and finite.");
+        if (!Compat.IsFinite(value) || value <= 0 || value > 1e9) throw new ArgumentException($"{key} must be positive and finite.");
         return value;
     }
     private static double Radians(JsonObject args, string key, double? fallback = null)
     {
         var value = args[key]?.GetValue<double>() ?? fallback ?? throw new ArgumentException($"{key} is required.");
-        if (!double.IsFinite(value) || Math.Abs(value) > 36000) throw new ArgumentException($"{key} is not a usable angle.");
+        if (!Compat.IsFinite(value) || Math.Abs(value) > 36000) throw new ArgumentException($"{key} is not a usable angle.");
         return value * Math.PI / 180;
     }
     private static string Words(JsonObject args, bool lines)
@@ -323,7 +505,7 @@ internal sealed class Operations
         return offset;
     }
     private static string List(Entity[] targets) => string.Join(", ", targets.Select(t => $"{t.GetRXClass().DxfName} {Handle(t.ObjectId)} ({t.Layer})"));
-    private static string Describe(Database db, Transaction tr, JsonObject args, HashSet<string>? pending = null)
+    private static string DescribeCore(Database db, Transaction tr, JsonObject args, HashSet<string>? pending = null)
     {
         var operation = Text(args, "operation");
         var units = $"\nCoordinates: WCS, drawing units ({db.Insunits}).";
@@ -391,7 +573,9 @@ internal sealed class Operations
                 return $"ERASE {Targets(db, tr, args).Length} entities: {List(Targets(db, tr, args))}\nUse AutoCAD's U to reverse this before closing the drawing.";
             case "set_layer":
                 return $"Move {Targets(db, tr, args).Length} entities to layer {LayerName(db, tr, Text(args, "layer"), pending)}: {List(Targets(db, tr, args))}";
-            default: throw new ArgumentException("Unsupported edit. No arbitrary-code execution is available.");
+            case "copy_from_drawing" or "attach_xref":
+                throw new ArgumentException($"{operation} reaches another drawing, so it needs a review of its own. Send it outside a batch.");
+            default: return DescribeMore(db, tr, args, pending, operation, units, into) ?? throw new ArgumentException("Unsupported edit. No arbitrary-code execution is available.");
         }
     }
     private static void RefuseEditing(Document doc)
@@ -406,12 +590,22 @@ internal sealed class Operations
         foreach (var key in proposals.Where(p => p.Value.Expires < DateTime.UtcNow).Select(p => p.Key).ToArray()) proposals.Remove(key);
         if (proposals.Count >= 32) throw new InvalidOperationException("Too many pending previews. Wait for them to expire.");
         string summary;
+        var stored = (JsonObject)args.DeepClone();
+        var linked = Linked.Contains(Text(args, "operation"));
         using (doc.LockDocument(DocumentLockMode.Read, null, null, false))
-        using (var tr = doc.Database.TransactionManager.StartOpenCloseTransaction()) summary = Describe(doc.Database, tr, args);
+        {
+            if (linked)
+            {
+                summary = DescribeLinked(doc, workspace, stored);
+                // Recorded here and overwriting anything the request carried, so it cannot be supplied.
+                stored["source_revision"] = State(LinkedSource(doc, workspace, stored)).Revision;
+            }
+            else using (var tr = doc.Database.TransactionManager.StartOpenCloseTransaction()) summary = Describe(doc.Database, tr, args);
+        }
         var state = State(doc);
         var token = Guid.NewGuid().ToString("N");
         var expires = DateTime.UtcNow.AddMinutes(2);
-        proposals[token] = new Proposal(workspace, state.Id, state.Revision, expires, (JsonObject)args.DeepClone(), summary);
+        proposals[token] = new Proposal(workspace, state.Id, state.Revision, expires, stored, summary);
         return J(new { previewToken = token, expires, document = DocumentInfo(doc, state), summary, confirmation = "Apply opens an exact review in AutoCAD; the person must choose Yes." });
     }
     // The secret came from Mi's main process at pairing and stands for a person's Apply press there.
@@ -420,7 +614,7 @@ internal sealed class Operations
     {
         var supplied = request["approval"]?.GetValue<string>();
         if (supplied == null) return false;
-        if (bound.Approval == null || !CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(bound.Approval)))
+        if (bound.Approval == null || !Compat.FixedTimeEquals(Encoding.UTF8.GetBytes(supplied), Encoding.UTF8.GetBytes(bound.Approval)))
             throw new InvalidOperationException("That approval was not accepted. Nothing was applied.");
         return true;
     }
@@ -433,6 +627,7 @@ internal sealed class Operations
         if (requireActive && doc != AcApp.DocumentManager.MdiActiveDocument) throw new InvalidOperationException("Make this drawing active in AutoCAD first. Nothing was applied.");
         if (Busy(doc)) throw new InvalidOperationException("AutoCAD is busy. Nothing was applied; create a new preview when it is idle.");
         RefuseEditing(doc);
+        if (Linked.Contains(Text(proposal.Arguments, "operation"))) CheckLinkedSource(doc, workspace, proposal.Arguments);
     }
     private JsonNode DescribeProposal(Document doc, string workspace, JsonObject args, Work work)
     {
@@ -452,6 +647,7 @@ internal sealed class Operations
         if (!approvedInMi && !Confirm.Ask("Review Mi drawing change", text, 50)) return J(new { outcome = "declined", changed = false });
         Validate();
         var operation = Text(proposal.Arguments, "operation");
+        if (Linked.Contains(operation)) return ApplyLinked(doc, workspace, proposal.Arguments, work);
         var db = doc.Database;
         var changed = new List<string>();
         // Named lock: AutoCAD records one undo group, so a single U reverses the whole edit.
@@ -459,14 +655,16 @@ internal sealed class Operations
         using var tr = doc.TransactionManager.StartTransaction();
         void Perform(JsonObject a)
         {
-        void Add(Entity entity, Action? configure = null)
+        void Add(Entity entity, Action? configure = null, Action? afterAppend = null)
         {
             var space = (BlockTableRecord)tr.GetObject(Space(db, tr, a["space"]?.GetValue<string>()), OpenMode.ForWrite);
             entity.SetDatabaseDefaults(db);
             entity.Layer = Text(a, "layer");
+            if (a["color_index"] is not null) entity.ColorIndex = ColorIndex(a);
             configure?.Invoke(); // After defaults, which would otherwise reset text height and style.
             space.AppendEntity(entity);
             tr.AddNewlyCreatedDBObject(entity, true);
+            afterAppend?.Invoke(); // Hatch patterns, attributes, and text alignment need the entity in the drawing.
             changed.Add(Handle(entity.ObjectId));
         }
         switch (Text(a, "operation"))
@@ -528,26 +726,30 @@ internal sealed class Operations
                 {
                     var arrow = Point(a, "arrow"); var landing = Point(a, "landing"); var size = Positive(a, "height");
                     var leftward = landing.X < arrow.X;
+                    var direction = leftward ? -Vector3d.XAxis : Vector3d.XAxis;
+                    leader.ContentType = ContentType.MTextContent;
+                    leader.TextHeight = size; leader.ArrowSize = size; leader.EnableDogleg = true; leader.DoglegLength = size; leader.LandingGap = size / 2;
+                    var cluster = leader.AddLeader();
+                    var path = leader.AddLeaderLine(cluster);
+                    leader.AddFirstVertex(path, arrow);
+                    leader.AddLastVertex(path, landing);
+                    leader.SetDogleg(cluster, direction);
+                    // Text goes on after the leader line, placed past the dogleg and gap. Attached first,
+                    // it stays at its default location (the origin) and drags the landing there.
                     var wording = new MText();
                     wording.SetDatabaseDefaults(db);
                     wording.Contents = MTextContents(Words(a, true));
                     wording.TextHeight = size;
                     if (a["width"] is not null) wording.Width = Positive(a, "width");
                     wording.Attachment = leftward ? AttachmentPoint.MiddleRight : AttachmentPoint.MiddleLeft;
-                    leader.ContentType = ContentType.MTextContent;
+                    wording.Location = landing + direction * (size + size / 2);
                     leader.MText = wording;
-                    leader.TextHeight = size; leader.ArrowSize = size; leader.EnableDogleg = true; leader.DoglegLength = size; leader.LandingGap = size / 2;
-                    var cluster = leader.AddLeader();
-                    var path = leader.AddLeaderLine(cluster);
-                    leader.AddFirstVertex(path, arrow);
-                    leader.AddLastVertex(path, landing);
-                    leader.SetDogleg(cluster, leftward ? -Vector3d.XAxis : Vector3d.XAxis);
                 });
                 break;
             case "batch":
                 foreach (var edit in (JsonArray)a["edits"]!) Perform((JsonObject)edit!);
                 break;
-            default: throw new InvalidOperationException("Unsupported edit.");
+            default: if (!PerformMore(a, db, tr, changed, Add)) throw new InvalidOperationException("Unsupported edit."); break;
         }
         }
         Perform(proposal.Arguments);

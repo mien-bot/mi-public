@@ -15,6 +15,16 @@ notion:
       - actual_date
       - start_time
       - end_time
+      - type
+    # Every leadSchema field the Notion Leads database mirrors (confirmed
+    # 2026-07-26 via scripts/notion-probe.ts) except converted_project_slug/
+    # converted_date -- Converted Project is a relation to a Studio Projects
+    # page id, a different identity space than the local slug, and Mi never
+    # infers that link (see src/adapters/notion/leads.ts).
+    # dropbox_path, contract_stage, and contract_notes feed the Dropbox
+    # Folder/Contract Stage/Contract Notes properties; the computed
+    # last-site-visit date and site-visits summary ride the same gate (feed
+    # Last Site Visit / Meeting Notes). See src/adapters/notion/leads.ts.
     lead:
       - create
       - name

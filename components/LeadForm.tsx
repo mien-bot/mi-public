@@ -358,14 +358,14 @@ export function LeadForm({
           <input
             value={lead.dropbox_path ?? ""}
             onChange={(event) => set("dropbox_path", event.target.value || null)}
-            placeholder={`e.g. 1.01 LEADS/${dateStampPrefix(lead.date_received)}${lead.name || "lead-name"}`}
+            placeholder={`e.g. Leads/${dateStampPrefix(lead.date_received)}${lead.name || "lead-name"}`}
             className={`${inputClass} min-w-0 flex-1`}
           />
           {dropboxAction === "create" && (
             <button
               type="button"
               disabled={!lead.name.trim()}
-              onClick={() => set("dropbox_path", `1.01 LEADS/${dateStampPrefix(lead.date_received)}${lead.name.trim()}`)}
+              onClick={() => set("dropbox_path", `Leads/${dateStampPrefix(lead.date_received)}${lead.name.trim()}`)}
               className="shrink-0 rounded-md border border-border px-3 py-2 text-xs text-muted-foreground hover:border-accent hover:text-foreground disabled:opacity-50"
             >
               Use suggested path

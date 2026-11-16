@@ -87,6 +87,7 @@ export interface PersonalCalendarOption {
 }
 
 export interface GoogleCalendarStatus {
+  canSend: boolean;
   connected: boolean;
   hasClient: boolean;
   calendarId: string | null;
@@ -101,11 +102,29 @@ export interface GoogleCalendarEvent {
   url: string | null;
 }
 
-/** Read-only by design: nothing here can change a Google calendar. */
+export interface GooglePushPreview {
+  mode: "send" | "remove";
+  calendarName: string | null;
+  adds: { name: string; when: string }[];
+  updates: { name: string; when: string }[];
+  removals: { name: string; when: string }[];
+  fingerprint: string;
+}
+
+export interface GooglePushResult {
+  name: string;
+  action: "add" | "update" | "remove";
+  status: "done" | "failed";
+  error?: string;
+}
+
+/** Reads by default. Writes need sending allowed, a confirmed preview, and Mi's tag on the event. */
 export interface ElectronGoogleCalendarAPI {
   status: () => Promise<GoogleCalendarStatus>;
   setClient: (clientId: string, clientSecret: string) => Promise<GoogleCalendarStatus>;
-  connect: () => Promise<GoogleCalendarStatus>;
+  connect: (write?: boolean) => Promise<GoogleCalendarStatus>;
+  previewPush: (mode: "send" | "remove") => Promise<GooglePushPreview>;
+  applyPush: (mode: "send" | "remove", fingerprint: string) => Promise<GooglePushResult[]>;
   calendars: () => Promise<{ id: string; name: string }[]>;
   select: (calendarId: string) => Promise<GoogleCalendarStatus>;
   events: (from: string, to: string) => Promise<GoogleCalendarEvent[]>;
@@ -547,10 +566,16 @@ export interface CadDocument {
   isActive?: boolean;
 }
 export type CadApplication = "revit" | "autocad";
+export interface CadConnectedDrawing { session: string; document: string; title: string; year?: string; open: boolean }
 export interface CadStatus {
   application: CadApplication;
-  sessions: { session: string; pid: number; version?: string; documents: CadDocument[]; error?: string }[];
-  binding: { session: string; document: string; title: string } | null;
+  /** year is the AutoCAD release ("2024", "2027") a session runs in; null for add-ins that predate it. */
+  /** features lists what the add-in supports, such as "multi-drawing" (several AutoCAD drawings per project). */
+  /** busy: the application is live but did not answer, usually because a dialog is open in it. */
+  sessions: { session: string; pid: number; version?: string; year?: string | null; features?: string[]; documents: CadDocument[]; error?: string; busy?: boolean }[];
+  /** The current file. An AutoCAD project also lists every connected drawing, current one included; open is false once its file closed. */
+  binding: { session: string; document: string; title: string; year?: string; drawings?: CadConnectedDrawing[] } | null;
+  /** "Connected", "Busy" (live but waiting on a dialog or command), "Not connected", or a reconnect message. */
   health: string;
   payloadAvailable: boolean;
   applicationInstalled: boolean;
@@ -559,26 +584,49 @@ export interface CadStatus {
   reviewsInMi: boolean;
   addin: "installed" | "optional-update" | "outdated" | "missing";
   requiredVersion: string;
+  /** AutoCAD only: supported releases found on this computer, and AutoCAD-family products Mi does not support. */
+  releases?: { supported: string[]; unsupported: string[] };
   launcher: string;
 }
-export interface CadReview { id: string; workspace: string; application: CadApplication; title: string; summary: string; expiresAt: number }
+/**
+ * kind "connect" is an agent asking for open drawings to be connected; "open" asks to open a drawing
+ * file from the project folder and connect it; "edit" is a drawing or model change. session is the
+ * terminal session of the agent that asked, when Mi started it.
+ */
+export interface CadReview { id: string; kind?: "edit" | "connect" | "open"; workspace: string; application: CadApplication; title: string; summary: string; expiresAt: number; session?: string }
+export type CadEngine = "claude" | "codex";
 export interface CadLessons { accepted: { id: string; text: string }[]; pending: { id: string; text: string }[] }
 export interface ElectronCadAPI {
   lessons: () => Promise<CadLessons>;
   addLesson: (text: string) => Promise<CadLessons>;
   reviewLesson: (id: string, accept: boolean) => Promise<CadLessons>;
   removeLesson: (id: string) => Promise<CadLessons>;
-  status: (workspace: string, application: CadApplication) => Promise<CadStatus>;
-  bind: (workspace: string, application: CadApplication, session: string, document: string) => Promise<CadStatus>;
+  /** session is a terminal slot; while it runs a CAD agent, its own current drawing is reported. */
+  status: (workspace: string, application: CadApplication, session?: string) => Promise<CadStatus>;
+  /** agentSession makes the drawing current for that agent window only. */
+  bind: (workspace: string, application: CadApplication, session: string, document: string, agentSession?: string) => Promise<CadStatus>;
+  /** Makes an already-connected drawing current, with no dialog in the application; for one agent window when session is given. */
+  select: (workspace: string, application: CadApplication, document: string, session?: string) => Promise<CadStatus>;
+  /** Disconnects one drawing; the project's other drawings stay connected. */
+  forget: (workspace: string, application: CadApplication, document: string, session?: string) => Promise<CadStatus & { revoked: boolean }>;
   disconnect: (workspace: string, application: CadApplication) => Promise<{ revoked: boolean; message: string }>;
   install: (application: CadApplication, action: "install" | "uninstall") => Promise<{ message: string }>;
-  startAgent: (workspace: string, engine: "claude") => Promise<{ session: string; existing?: boolean }>;
+  /**
+   * Starts an agent for one connected drawing (the project's current one by default), or shows the one
+   * already working in it. place "terminal" uses a free session of the project terminal; "window" (the
+   * default) gives it its own window. The result's place says where it is.
+   */
+  startAgent: (workspace: string, engine: CadEngine, document?: string, place?: "terminal" | "window") => Promise<{ session: string; existing?: boolean; place: "terminal" | "window" }>;
+  /** Connects several open AutoCAD drawings at once; AutoCAD asks once per window. session is the asking terminal session. */
+  attach: (workspace: string, targets: { session: string; document: string }[], session?: string) => Promise<{ results: { drawing: string; connected: boolean; error?: string }[]; status: CadStatus }>;
   isAgentSession: (workspace: string, session: string) => Promise<boolean>;
   reviews: () => Promise<CadReview[]>;
   reviewShown: (id: string) => Promise<boolean>;
   answerReview: (id: string, approved: boolean) => Promise<boolean>;
   onReview: (callback: (review: CadReview) => void) => () => void;
   onReviewClosed: (callback: (id: string) => void) => () => void;
+  /** A CAD agent connected drawings or switched its drawing for this project. */
+  onChanged: (callback: (change: { workspace: string }) => void) => () => void;
 }
 export interface ElectronAPI {
   isElectron: true;

@@ -28,13 +28,8 @@ export async function PATCH(
   }
 
   const project = getProject(slug);
-  if (!project.meta.notion_page_id) {
-    return NextResponse.json(
-      { error: "This project is not linked to a Notion project." },
-      { status: 409 },
-    );
-  }
-  if (!isWriteAllowed("project", "status")) {
+  const notionPageId = project.meta.notion_page_id;
+  if (notionPageId && !isWriteAllowed("project", "status")) {
     return NextResponse.json(
       { error: "Notion project status writes are disabled in mi.config.yaml." },
       { status: 409 },
@@ -43,7 +38,7 @@ export async function PATCH(
 
   const previousStatus = project.meta.status;
   try {
-    await updateStudioProjectStatus(project.meta.notion_page_id, parsed.data);
+    if (notionPageId) await updateStudioProjectStatus(notionPageId, parsed.data);
     patchScalarField(path.join(PROJECTS_DIR, slug, "project.yaml"), "status", parsed.data);
     try { mirrorProjectKnowledge(slug); } catch (error) { console.error(error); }
   } catch (cause) {
@@ -63,5 +58,5 @@ export async function PATCH(
 
   revalidatePath("/projects");
   revalidatePath(`/projects/${slug}`);
-  return NextResponse.json({ status: parsed.data, notionSynced: true });
+  return NextResponse.json({ status: parsed.data, notionSynced: Boolean(notionPageId) });
 }

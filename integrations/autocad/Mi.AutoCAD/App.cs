@@ -39,7 +39,11 @@ internal static class Confirm
     internal static bool Ask(string title, string text, int declineAfterSeconds = 0)
     {
         using var form = new System.Windows.Forms.Form { Text = title, ClientSize = new System.Drawing.Size(520, 300), FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog,
-            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, StartPosition = System.Windows.Forms.FormStartPosition.CenterParent };
+            MaximizeBox = false, MinimizeBox = false, ShowInTaskbar = false, StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen,
+            // A request arrives while the person is in Mi, so AutoCAD is usually behind it. CenterParent put the
+            // dialog at the screen's top-left under AutoCAD's palettes in 2024, where it declined itself unseen.
+            TopMost = true };
+        form.Shown += (_, _) => form.Activate();
         var summary = new System.Windows.Forms.TextBox { Multiline = true, ReadOnly = true, ScrollBars = System.Windows.Forms.ScrollBars.Vertical, Text = text.ReplaceLineEndings("\r\n"), Bounds = new System.Drawing.Rectangle(12, 12, 496, 236), TabStop = false };
         var no = new System.Windows.Forms.Button { Text = "No", DialogResult = System.Windows.Forms.DialogResult.No, Bounds = new System.Drawing.Rectangle(428, 260, 80, 28) };
         var yes = new System.Windows.Forms.Button { Text = "Yes", DialogResult = System.Windows.Forms.DialogResult.Yes, Bounds = new System.Drawing.Rectangle(340, 260, 80, 28) };

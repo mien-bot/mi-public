@@ -372,6 +372,10 @@ export async function updateProjectScheduleEntry(input: {
   eventPageId: string;
   projectPageId?: string;
   date?: string;
+  dateEnd?: string | null;
+  startTime?: string;
+  endTime?: string;
+  types?: string[];
   status?: StudioScheduleStatus;
   completedDate?: string | null;
 }): Promise<void> {
@@ -411,11 +415,20 @@ export async function duplicateScheduleEntry(input: {
 export function buildScheduleUpdateProperties(input: {
   projectPageId?: string;
   date?: string;
+  dateEnd?: string | null;
+  startTime?: string;
+  endTime?: string;
+  types?: string[];
   status?: StudioScheduleStatus;
   completedDate?: string | null;
 }) {
   const properties: Record<string, unknown> = {};
-  if (input.date !== undefined) properties.Date = { date: { start: input.date } };
+  if (input.types !== undefined) properties.Type = { multi_select: input.types.map((name) => ({ name })) };
+  if (input.date !== undefined) {
+    properties.Date = { date: { start: input.date, ...(input.dateEnd ? { end: input.dateEnd } : {}) } };
+  }
+  if (input.startTime !== undefined) properties["Start Time"] = { date: { start: input.startTime } };
+  if (input.endTime !== undefined) properties["End Time"] = { date: { start: input.endTime } };
   if (input.projectPageId !== undefined) properties.Projects = { relation: [{ id: input.projectPageId }] };
   if (input.status !== undefined) properties.Status = { status: { name: input.status } };
   if (input.completedDate !== undefined) {

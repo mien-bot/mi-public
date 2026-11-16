@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- One bundle, one component per supported release. Each release loads only the component whose
+     series matches it, so AutoCAD 2022, 2025, 2026, LT, and any release in between load nothing. -->
 <ApplicationPackage SchemaVersion="1.0" AppVersion="0.1.0" Name="Mi CAD Native" Description="Mi native project CAD connection"
   Author="STUDIO" ProductCode="{5C1D5E0B-7E7A-4B62-9C57-3E9B1C0A2D27}" UpgradeCode="{9A1E2F44-6D0B-4C37-8E55-0F4D7C2B6A19}">
   <CompanyDetails Name="STUDIO" />
-  <RuntimeRequirements Platform="AutoCAD" SeriesMin="R26.0" SeriesMax="R26.0" OS="Win64" SupportPath="./Contents" />
-  <Components>
-    <ComponentEntry AppName="MiCadNative" ModuleName="./Contents/Mi.AutoCAD.dll" LoadOnAutoCADStartup="true" AppDescription="Mi native project CAD connection" />
+  <Components Description="AutoCAD 2027 (.NET 10)">
+    <RuntimeRequirements Platform="AutoCAD" SeriesMin="R26.0" SeriesMax="R26.0" OS="Win64" SupportPath="./Contents/R26.0" />
+    <ComponentEntry AppName="MiCadNative" ModuleName="./Contents/R26.0/Mi.AutoCAD.dll" LoadOnAutoCADStartup="true" AppDescription="Mi native project CAD connection" />
+  </Components>
+  <Components Description="AutoCAD 2024 (.NET Framework 4.8)">
+    <RuntimeRequirements Platform="AutoCAD" SeriesMin="R24.3" SeriesMax="R24.3" OS="Win64" SupportPath="./Contents/R24.3" />
+    <ComponentEntry AppName="MiCadNative2024" ModuleName="./Contents/R24.3/Mi.AutoCAD.dll" LoadOnAutoCADStartup="true" AppDescription="Mi native project CAD connection" />
   </Components>
 </ApplicationPackage>

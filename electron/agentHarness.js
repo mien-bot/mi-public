@@ -596,10 +596,14 @@ if (-not $env:MI_CAD_LAUNCHER -or -not (Test-Path -LiteralPath $env:MI_CAD_LAUNC
 
 Use Set up MCP in this project's Mi desktop terminal to choose Revit or AutoCAD, install
 that native add-in, and explicitly pair an open model or drawing. Current payloads target
-Revit API 26.5.0.0 and AutoCAD 2027 API 26.0.0.0. No pyRevit or Python is required.
+Revit API 26.5.0.0, and full AutoCAD 2024 (API 24.3.0.0) or 2027 (API 26.0.0.0) from one
+bundle. AutoCAD LT and verticals are not supported. No pyRevit or Python is required.
 Other builds require separate validation. A project can pair one of each.
-Start a CAD-enabled agent with powershell -NoProfile -File tools/cad.ps1 -Engine codex
+Set up MCP can start a Claude or Codex agent with only Mi's CAD tools, in this terminal.
+To keep your full MCP setup, run powershell -NoProfile -File tools/cad.ps1 -Engine codex
 (or -Engine claude). Existing MCP configurations are not overwritten.
+A drawing that is not open in AutoCAD can be requested with acad_open_drawing, by its path
+in the project folder; the person approves opening and connecting it.
 
 Read status first. Tools target the paired document and reject document changes.
 Revit (revit_*): explicit element and parameter IDs, bounded requests, internal feet.

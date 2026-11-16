@@ -1,8 +1,6 @@
 using System.Collections.Concurrent;
 using System.IO.Pipes;
 using System.Text;
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Windows.Threading;
 
 namespace Mi.AutoCad;
@@ -35,11 +33,11 @@ internal sealed class Bridge : IDisposable
         Handler.Reset();
         lifetime = new CancellationTokenSource();
         var session = Guid.NewGuid().ToString("N");
-        var pipe = $"mi-autocad-{Environment.ProcessId}-{session}";
+        var pipe = $"mi-autocad-{Compat.ProcessId}-{session}";
         var directory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Mi", "AutoCAD", "sessions");
         Directory.CreateDirectory(directory);
         discoveryFile = Path.Combine(directory, session + ".json");
-        File.WriteAllText(discoveryFile, JsonSerializer.Serialize(new { schema = 1, application = "AutoCAD", year = "2027", pid = Environment.ProcessId, session, pipe, version = "0.1.0" }), new UTF8Encoding(false));
+        File.WriteAllText(discoveryFile, JsonSerializer.Serialize(new { schema = 1, application = "AutoCAD", year = Target.Year, apiVersion = Target.ApiVersion, framework = Target.Framework, pid = Compat.ProcessId, session, pipe, version = Target.AddinVersion }), new UTF8Encoding(false));
         _ = Task.Run(() => Listen(pipe, lifetime.Token));
     }
     private async Task Listen(string name, CancellationToken cancellation)
@@ -51,8 +49,7 @@ internal sealed class Bridge : IDisposable
             try
             {
                 await clients.WaitAsync(cancellation); acquired = true;
-                stream = new NamedPipeServerStream(name, PipeDirection.InOut, 8, PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                stream = Compat.CreatePipeServer(name, 8);
                 await stream.WaitForConnectionAsync(cancellation);
                 _ = Serve(stream, cancellation);
                 stream = null; acquired = false; // Serve owns both resources.
@@ -74,7 +71,7 @@ internal sealed class Bridge : IDisposable
                 using var writer = new StreamWriter(stream, new UTF8Encoding(false), 4096, true) { AutoFlush = true };
                 var text = new StringBuilder();
                 var buffer = new char[1];
-                while (await reader.ReadAsync(buffer.AsMemory(), timeout.Token) > 0 && buffer[0] != '\n')
+                while (await Compat.ReadAsync(reader, buffer, timeout.Token) > 0 && buffer[0] != '\n')
                 {
                     if (text.Length >= 1_048_576) throw new InvalidDataException("Request too large.");
                     text.Append(buffer[0]);
@@ -88,7 +85,7 @@ internal sealed class Bridge : IDisposable
                 JsonObject result;
                 try { result = await work.Result.Task.WaitAsync(timeout.Token); }
                 catch (OperationCanceledException) { result = new JsonObject { ["ok"] = false, ["error"] = "AutoCAD request expired. Do not automatically retry edits; inspect the drawing first." }; }
-                await writer.WriteLineAsync(result.ToJsonString().AsMemory(), lifetimeToken);
+                await Compat.WriteLineAsync(writer, result.ToJsonString(), lifetimeToken);
             }
             catch (System.Exception) { /* Broken connections never log drawing data or crash AutoCAD. */ }
             finally { clients.Release(); }
@@ -104,11 +101,41 @@ internal sealed class Bridge : IDisposable
         {
             while (queue.TryDequeue(out var work))
             {
-                try { work.Check(); work.Result.TrySetResult(new JsonObject { ["ok"] = true, ["result"] = Handler.Run(work) }); }
-                catch (System.Exception ex) { work.Result.TrySetResult(new JsonObject { ["ok"] = false, ["error"] = ex.Message }); }
+                // Opening a file from this dispatcher callback is refused with "Invalid execution
+                // context", even though AutoCAD reports application context (found live in 2024).
+                // AutoCAD's own Idle event is a point where it accepts it, so an open waits for that.
+                // A modal window in AutoCAD, such as Drawing Recovery, holds Idle back; the open then
+                // gives up with a clear answer before the request itself expires, and nothing opens.
+                if (NeedsApplicationContext(work))
+                {
+                    var deferred = work;
+                    var started = false;
+                    EventHandler? onIdle = null;
+                    onIdle = (_, _) => { Autodesk.AutoCAD.ApplicationServices.Application.Idle -= onIdle; started = true; Complete(deferred); };
+                    Autodesk.AutoCAD.ApplicationServices.Application.Idle += onIdle;
+                    _ = Task.Delay(TimeSpan.FromSeconds(45)).ContinueWith(_ => dispatcher.BeginInvoke(DispatcherPriority.Normal, new Action(() =>
+                    {
+                        if (started) return;
+                        Autodesk.AutoCAD.ApplicationServices.Application.Idle -= onIdle;
+                        deferred.Result.TrySetResult(new JsonObject { ["ok"] = false, ["error"] = "AutoCAD stayed busy, so the drawing was not opened. A dialog may be open in AutoCAD; ask the person to close it, then try again. Nothing changed." });
+                    })), TaskScheduler.Default);
+                    continue;
+                }
+                Complete(work);
             }
         }
         finally { draining = false; }
+    }
+    // A malformed method must not throw here, outside Complete's error handling.
+    private static bool NeedsApplicationContext(Work work)
+    {
+        try { return work.Request["method"]?.GetValue<string>() == "open"; }
+        catch (System.Exception) { return false; }
+    }
+    private void Complete(Work work)
+    {
+        try { work.Check(); work.Result.TrySetResult(new JsonObject { ["ok"] = true, ["result"] = Handler.Run(work) }); }
+        catch (System.Exception ex) { work.Result.TrySetResult(new JsonObject { ["ok"] = false, ["error"] = ex.Message }); }
     }
     internal void Stop()
     {

@@ -60,7 +60,7 @@ export function ProjectStatusControl({
       <select
         id={`project-status-${slug}`}
         value={pendingStatus ?? status}
-        disabled={saving || !notionLinked}
+        disabled={saving}
         onChange={(event) => setPendingStatus(event.target.value as ProjectStatus)}
         className="rounded-md border border-border bg-card px-2.5 py-1.5 outline-none transition-colors focus:border-accent disabled:opacity-60"
       >
@@ -72,10 +72,10 @@ export function ProjectStatusControl({
       </select>
       <span className="text-xs text-muted-foreground">
         {saving
-          ? "Syncing with Notion…"
+          ? "Saving…"
           : notionLinked
-            ? "Reviewed status changes sync with Notion"
-            : "Link this project to Notion before changing status"}
+            ? "Syncs with Notion"
+            : "Saved in Mi"}
       </span>
       {error && <span className="text-xs text-red-600 dark:text-red-400">{error}</span>}
       {pendingStatus && pendingStatus !== status && (
@@ -83,7 +83,7 @@ export function ProjectStatusControl({
           <div role="dialog" aria-modal="true" className="w-full max-w-md rounded-lg border border-border bg-card p-5">
             <h2 className="font-medium">Confirm project status change</h2>
             <p className="mt-2 text-sm text-muted-foreground">
-              Status will change from &#8220;{statusLabel(status)}&#8221; to &#8220;{statusLabel(pendingStatus)}&#8221; in Mi and in Notion.
+              Status will change from &#8220;{statusLabel(status)}&#8221; to &#8220;{statusLabel(pendingStatus)}&#8221; {notionLinked ? "in Mi and in Notion" : "in Mi"}.
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button

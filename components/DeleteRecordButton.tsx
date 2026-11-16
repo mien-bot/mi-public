@@ -16,9 +16,9 @@ import { useState } from "react";
  * - **A single record** gets an inline two-step confirm. A mis-click costs one extra click
  *   to undo, and every server route behind this backs the file up before removing it, so
  *   the record is recoverable from `.mi-backups/` even when the confirm was deliberate.
- * - **A whole folder** — a project, a library collection — asks for its exact name to be
- *   typed back. A slug is easy to mis-click out of a list; a name is not something you type
- *   by accident. That is the same discipline lead deletion has always used.
+ * - **A whole folder** — a project, a library collection — asks for the word Delete to be
+ *   typed. That stops an accidental click without making anyone retype a long project name,
+ *   the same discipline lead deletion uses.
  *
  * `onDelete` should throw an `Error` whose message is worth showing; it is rendered inline
  * rather than thrown away, because "the schedule changed after you opened it" is exactly
@@ -28,7 +28,7 @@ export function DeleteRecordButton({
   label = "Delete",
   prompt = "Delete this record?",
   recoverableNote = "A recoverable copy is kept on disk.",
-  requireTypedName,
+  requireTypedWord,
   onDelete,
   onDeleted,
   disabled = false,
@@ -38,8 +38,8 @@ export function DeleteRecordButton({
   prompt?: string;
   /** Set to "" to omit the reassurance, e.g. where nothing is backed up. */
   recoverableNote?: string;
-  /** When set, the exact text the person must type before Delete is enabled. */
-  requireTypedName?: string;
+  /** When set, the word the person must type, in any case, before Delete is enabled. */
+  requireTypedWord?: string;
   onDelete: () => Promise<void>;
   /** Called after a successful delete, for call sites that need to close a panel. */
   onDeleted?: () => void;
@@ -51,7 +51,8 @@ export function DeleteRecordButton({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const nameMatches = requireTypedName === undefined || typed === requireTypedName;
+  const wordMatches = requireTypedWord === undefined
+    || typed.trim().toLowerCase() === requireTypedWord.toLowerCase();
 
   function reset() {
     setConfirming(false);
@@ -92,19 +93,19 @@ export function DeleteRecordButton({
         {prompt}
         {recoverableNote ? ` ${recoverableNote}` : ""}
       </span>
-      {requireTypedName !== undefined && (
+      {requireTypedWord !== undefined && (
         <input
           autoFocus
           value={typed}
           onChange={(event) => setTyped(event.target.value)}
-          placeholder={`Type “${requireTypedName}” to confirm`}
-          aria-label={`Type ${requireTypedName} to confirm deletion`}
+          placeholder={`Type “${requireTypedWord}” to confirm`}
+          aria-label={`Type ${requireTypedWord} to confirm deletion`}
           className="min-w-56 rounded-md border border-border bg-background px-2 py-1 text-xs"
         />
       )}
       <button
         type="button"
-        disabled={busy || !nameMatches}
+        disabled={busy || !wordMatches}
         onClick={() => void run()}
         className="rounded-md bg-status-danger-foreground px-3 py-1.5 text-xs text-background disabled:opacity-40"
       >

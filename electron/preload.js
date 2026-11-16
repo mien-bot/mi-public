@@ -3,15 +3,18 @@ const { contextBridge, ipcRenderer } = require("electron");
 contextBridge.exposeInMainWorld("electronAPI", {
   isElectron: true,
   cad: {
-    status: (workspace, application) => ipcRenderer.invoke("cad:status", { workspace, application }),
-    bind: (workspace, application, session, document) => ipcRenderer.invoke("cad:bind", { workspace, application, session, document }),
+    status: (workspace, application, session) => ipcRenderer.invoke("cad:status", { workspace, application, session }),
+    bind: (workspace, application, session, document, agentSession) => ipcRenderer.invoke("cad:bind", { workspace, application, session, document, agentSession }),
+    select: (workspace, application, document, session) => ipcRenderer.invoke("cad:select", { workspace, application, document, session }),
+    forget: (workspace, application, document, session) => ipcRenderer.invoke("cad:forget", { workspace, application, document, session }),
     disconnect: (workspace, application) => ipcRenderer.invoke("cad:disconnect", { workspace, application }),
     install: (application, action) => ipcRenderer.invoke("cad:install", { application, action }),
     lessons: () => ipcRenderer.invoke("cad:lessons"),
     addLesson: (text) => ipcRenderer.invoke("cad:lesson-add", { text }),
     reviewLesson: (id, accept) => ipcRenderer.invoke("cad:lesson-review", { id, accept }),
     removeLesson: (id) => ipcRenderer.invoke("cad:lesson-remove", { id }),
-    startAgent: (workspace, engine) => ipcRenderer.invoke("cad:start-agent", { workspace, engine }),
+    startAgent: (workspace, engine, document, place) => ipcRenderer.invoke("cad:start-agent", { workspace, engine, document, place }),
+    attach: (workspace, targets, session) => ipcRenderer.invoke("cad:attach", { workspace, targets, session }),
     isAgentSession: (workspace, session) => ipcRenderer.invoke("cad:is-agent-session", { workspace, session }),
     reviews: () => ipcRenderer.invoke("cad:reviews"),
     reviewShown: (id) => ipcRenderer.invoke("cad:review-shown", { id }),
@@ -25,6 +28,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
       const listener = (_event, id) => callback(id);
       ipcRenderer.on("cad:review-closed", listener);
       return () => ipcRenderer.removeListener("cad:review-closed", listener);
+    },
+    onChanged: (callback) => {
+      const listener = (_event, change) => callback(change);
+      ipcRenderer.on("cad:changed", listener);
+      return () => ipcRenderer.removeListener("cad:changed", listener);
     },
   },
   setup: {
@@ -127,7 +135,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
   googleCalendar: {
     status: () => ipcRenderer.invoke("google-calendar:status"),
     setClient: (clientId, clientSecret) => ipcRenderer.invoke("google-calendar:set-client", { clientId, clientSecret }),
-    connect: () => ipcRenderer.invoke("google-calendar:connect"),
+    connect: (write = false) => ipcRenderer.invoke("google-calendar:connect", { write }),
+    previewPush: (mode) => ipcRenderer.invoke("google-calendar:preview-push", { mode }),
+    applyPush: (mode, fingerprint) => ipcRenderer.invoke("google-calendar:apply-push", { mode, fingerprint }),
     calendars: () => ipcRenderer.invoke("google-calendar:calendars"),
     select: (calendarId) => ipcRenderer.invoke("google-calendar:select", { calendarId }),
     events: (from, to) => ipcRenderer.invoke("google-calendar:events", { from, to }),

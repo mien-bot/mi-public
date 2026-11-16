@@ -1,3 +1,4 @@
+import { isCurrentProject } from "@/lib/content/projectRedirect";
 import fs from "node:fs";
 import path from "node:path";
 import { getAllProjects } from "@/lib/content/projects";
@@ -392,7 +393,10 @@ export function getUnifiedProjectList(): UnifiedProjectListEntry[] {
     }
   }
 
-  const localProjects = getAllProjects();
+  const allLocal = getAllProjects();
+  const replaced = new Set(allLocal.filter((project) => !isCurrentProject(project)).map((project) => project.slug));
+  const localProjects = allLocal.filter(isCurrentProject);
+  notionProjects = notionProjects.filter((entry) => !replaced.has(entry.slug));
 
   if (notionProjects.length === 0) {
     return localProjects.filter((project) =>

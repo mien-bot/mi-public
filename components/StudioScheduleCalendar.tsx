@@ -1,5 +1,7 @@
 "use client";
 
+import type { ScheduleType } from "@/lib/schema";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScheduleAdjustAgent } from "@/components/ScheduleAdjustAgent";
 import { MonthScheduleView, TimedScheduleView } from "@/components/ScheduleCalendarViews";
@@ -17,6 +19,7 @@ import {
   scheduleVisibleDays,
   type ScheduleCalendarView,
   type ScheduleDragMode,
+  dateFromScheduleKey,
 } from "@/components/scheduleCalendarModel";
 import { readJsonResponse } from "@/lib/readJsonResponse";
 import { compareTier, scheduleEntryTier, slipWarnings, type TimelineRow } from "@/lib/scheduleInsights";
@@ -24,6 +27,10 @@ import type { GoogleCalendarEvent, ScheduleSnapshot, ScheduleSnapshotEntry } fro
 import { usePersonalTimezone } from "./usePersonalTimezone";
 import { StatusNotice } from "./UiState";
 import { TierLegend, UpcomingCriticalStrip, YearTimelineView } from "./YearTimelineView";
+import { YearMonthsView } from "./YearMonthsView";
+import { CalendarKindFilter, CalendarShortcuts, useHiddenKinds } from "./CalendarParts";
+import { entryKind, ScheduleEntryPeek } from "./ScheduleEntryPeek";
+import { useCalendarKeys } from "./useCalendarKeys";
 
 type PendingDrop = { entry: ScheduleSnapshotEntry; mode: ScheduleDragMode; newDate: string; targetMinutes?: number };
 
@@ -40,6 +47,10 @@ export function StudioScheduleCalendar() {
   const [syncing, setSyncing] = useState(false);
   const [message, setMessage] = useState("");
   const [eventDraftDate, setEventDraftDate] = useState<string | null>(null);
+  const [eventDraftTime, setEventDraftTime] = useState("");
+  const [peek, setPeek] = useState<ScheduleSnapshotEntry | null>(null);
+  const { hiddenKinds, toggleKind } = useHiddenKinds();
+  const root = useRef<HTMLElement>(null);
   const [view, setView] = useState<ScheduleCalendarView>("month");
   const [dragging, setDragging] = useState<{ entry: ScheduleSnapshotEntry; mode: ScheduleDragMode } | null>(null);
   const [savingEntryId, setSavingEntryId] = useState<string | null>(null);
@@ -110,12 +121,12 @@ export function StudioScheduleCalendar() {
     const map = new Map<string, ScheduleSnapshotEntry[]>();
     for (const entry of [...(snapshot?.entries ?? []), ...(showGoogle ? googleEntries : [])]) {
       const key = entryDateKey(entry);
-      if (!key) continue;
+      if (!key || hiddenKinds.includes(entry.notion_page_id.startsWith(GOOGLE_ENTRY_PREFIX) ? "meeting" : entryKind(entry))) continue;
       map.set(key, [...(map.get(key) ?? []), entry]);
     }
     for (const entries of map.values()) entries.sort((a, b) => compareTier(scheduleEntryTier(a.type), scheduleEntryTier(b.type)));
     return map;
-  }, [snapshot, googleEntries, showGoogle]);
+  }, [snapshot, googleEntries, showGoogle, hiddenKinds]);
 
   /** Project rows plus Notion deadlines no project tracks, so the year view hides nothing critical. */
   const yearRows = useMemo(() => {
@@ -155,12 +166,20 @@ export function StudioScheduleCalendar() {
       )
     : [];
 
-  function openEventForm(date: string) {
+  function openEventForm(date: string, startTime = "") {
+    setEventDraftTime(startTime);
     setEventDraftDate(date);
     window.requestAnimationFrame(() => {
       eventFormRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     });
   }
+
+  const { helpOpen, setHelpOpen } = useCalendarKeys(root, {
+    add: () => openEventForm(initialEventDate),
+    today: () => { const now = new Date(); setAnchor(new Date(now.getFullYear(), now.getMonth(), now.getDate())); },
+    move: changeRange,
+    view: setView,
+  });
 
   async function syncNow() {
     if (!window.electronAPI) return false;
@@ -192,6 +211,28 @@ export function StudioScheduleCalendar() {
     window.electronAPI?.notion.open(entry.notion_page_id).catch(() => {
       setMessage("Mi could not open that page in Notion.");
     });
+  }
+
+  /** Pressing Save on the card is the confirmation for this one row. */
+  async function saveEntryCategory(entry: ScheduleSnapshotEntry, type: ScheduleType) {
+    const response = await fetch("/api/schedule/entry-type", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ eventPageId: entry.notion_page_id, type, confirmed: true }),
+    });
+    const data = await readJsonResponse<{ note?: string | null }>(response, "Notion could not be updated.");
+    setSnapshot((current) => current ? {
+      ...current,
+      entries: current.entries.map((item) => item.notion_page_id === entry.notion_page_id ? { ...item, type: [type] } : item),
+    } : current);
+    setPeek(null);
+    setMessage(data.note ?? `${entry.name} is now ${type}.`);
+    await syncNow();
+  }
+
+  function openDay(date: string) {
+    setAnchor(dateFromScheduleKey(date));
+    setView("day");
   }
 
   /** A drop only proposes the change: nothing reaches Notion until it is confirmed below. */
@@ -281,7 +322,7 @@ export function StudioScheduleCalendar() {
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section ref={root} className="rounded-xl border border-border bg-card p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-light">STUDIO Schedule</h2>
@@ -318,15 +359,16 @@ export function StudioScheduleCalendar() {
       {eventDraftDate && (
         <div ref={eventFormRef}>
           <ScheduleCreateForm
-            key={eventDraftDate}
+            key={`${eventDraftDate}-${eventDraftTime}`}
             initialDate={eventDraftDate}
+            initialStartTime={eventDraftTime}
             onCancel={() => setEventDraftDate(null)}
             onApplied={syncNow}
           />
         </div>
       )}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted-foreground">Drag to move; hold Ctrl (Command on Mac) while dragging to duplicate. In week or day views, drag a timed Date range’s bottom handle to resize. You confirm each change before it saves to Notion.</p>
+        <p className="text-xs text-muted-foreground">Press C or click a day to add. Drag to move, Ctrl-drag to copy, drag a bottom edge to resize. Press ? for shortcuts.</p>
         <div className="inline-flex rounded-md border border-border p-1" aria-label="Calendar view">
           {(["year", "month", "week", "work-week", "day"] as const).map((option) => (
             <button
@@ -342,12 +384,12 @@ export function StudioScheduleCalendar() {
         </div>
       </div>
       <UpcomingCriticalStrip rows={yearRows} today={todayKey} />
-      {pendingDrop && <div role="alertdialog" aria-label="Confirm calendar change" className="mt-3 rounded-md border border-accent/50 bg-background p-3 text-sm">
+      {pendingDrop && <div role="alertdialog" aria-label="Confirm calendar change" onKeyDown={(event) => { if (event.key === "Escape") setPendingDrop(null); }} className="fixed bottom-4 left-1/2 z-[75] w-[min(32rem,calc(100vw-2rem))] -translate-x-1/2 rounded-lg border border-accent/50 bg-card p-3 text-sm shadow-xl">
         <p className="font-medium">{pendingDrop.mode === "duplicate" ? "Duplicate" : pendingDrop.mode === "resize" ? "Change the time of" : "Move"} “{pendingDrop.entry.name}”{pendingDrop.mode === "resize" ? "" : ` to ${pendingDrop.newDate}`}?</p>
         {pendingWarnings.map((warning) => <p key={warning} className="mt-1 text-status-warning-foreground">{warning}</p>)}
-        <div className="mt-2 flex gap-2">
-          <button type="button" onClick={() => void confirmDrop(pendingDrop)} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground">Confirm and save to Notion</button>
+        <div className="mt-2 flex justify-end gap-2">
           <button type="button" onClick={() => setPendingDrop(null)} className="rounded-md border border-border px-3 py-1.5 text-sm">Cancel</button>
+          <button type="button" autoFocus onClick={() => void confirmDrop(pendingDrop)} className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground">Save to Notion</button>
         </div>
       </div>}
       <h3 className="mt-3 text-center font-medium">{scheduleViewHeading(anchor, view)}</h3>
@@ -364,8 +406,16 @@ export function StudioScheduleCalendar() {
             : "This schedule snapshot is more than 8 hours old. Sync now before making planning decisions."}
         </StatusNotice>
       )}
+      <CalendarKindFilter hiddenKinds={hiddenKinds} onToggle={toggleKind} />
       {view === "year" ? <>
         <TierLegend />
+        <YearMonthsView
+          year={anchor.getFullYear()}
+          today={todayKey}
+          markers={yearRows.flatMap((row) => row.markers.map(({ date, tier, done, name }) => ({ date, tier, done, name: `${name} · ${row.name}` })))}
+          onSelectDay={openDay}
+        />
+        <h3 className="mt-6 text-xs font-medium text-muted-foreground">Project timelines</h3>
         <YearTimelineView rows={yearRows} year={anchor.getFullYear()} today={todayKey} />
       </> : view === "month" ? (
         <MonthScheduleView
@@ -373,11 +423,12 @@ export function StudioScheduleCalendar() {
           anchor={anchor}
           todayKey={todayKey}
           entriesByDate={entriesByDate}
-          onOpen={openInNotion}
+          onOpen={setPeek}
           onDragStart={beginDrag}
           onDragEnd={() => setDragging(null)}
           onDrop={(date) => applyDrop(date)}
           onCreate={openEventForm}
+          onOpenDay={openDay}
           timezone={timezone}
           savingEntryId={savingEntryId}
         />
@@ -387,7 +438,7 @@ export function StudioScheduleCalendar() {
           days={days}
           todayKey={todayKey}
           entriesByDate={entriesByDate}
-          onOpen={openInNotion}
+          onOpen={setPeek}
           onDragStart={beginDrag}
           onDragEnd={() => setDragging(null)}
           onDrop={(date, minutes) => applyDrop(date, minutes)}
@@ -398,6 +449,14 @@ export function StudioScheduleCalendar() {
         />
       )}
       {message && <p role="status" className="mt-3 text-xs text-muted-foreground">{message}</p>}
+      {peek && <ScheduleEntryPeek
+        entry={peek}
+        sourceLabel={peek.notion_page_id.startsWith(GOOGLE_ENTRY_PREFIX) ? "Google Calendar" : "Notion"}
+        onOpenSource={() => { openInNotion(peek); setPeek(null); }}
+        onClose={() => setPeek(null)}
+        onSaveCategory={peek.notion_page_id.startsWith(GOOGLE_ENTRY_PREFIX) ? undefined : (type) => saveEntryCategory(peek, type)}
+      />}
+      {helpOpen && <CalendarShortcuts onClose={() => setHelpOpen(false)} />}
 
       <div className="mt-5 border-t border-border pt-4">
         <ScheduleRemoveControl entries={snapshot?.entries ?? []} onRemoved={async (id) => {

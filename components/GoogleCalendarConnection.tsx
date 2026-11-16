@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import type { GoogleCalendarStatus } from "@/types/electron";
+import { GoogleCalendarSend } from "./GoogleCalendarSend";
 
 const control = "w-full rounded-md border border-border bg-card px-2 py-1.5 text-sm";
 
-/** Connects one Google calendar for reading. Secrets go straight to the desktop process. */
+/** Connects one Google calendar. Secrets go straight to the desktop process. */
 export function GoogleCalendarConnection() {
   const [status, setStatus] = useState<GoogleCalendarStatus | null>(null);
   const [calendars, setCalendars] = useState<{ id: string; name: string }[]>([]);
@@ -29,7 +30,7 @@ export function GoogleCalendarConnection() {
 
   return <section aria-label="Google Calendar" className="mt-5 rounded-md border border-border p-4">
     <h3 className="font-medium">Google Calendar</h3>
-    <p className="mt-1 text-sm text-muted-foreground">Shows one Google calendar on the Studio calendar. Mi can only read it, and never changes Google.</p>
+    <p className="mt-1 text-sm text-muted-foreground">Shows one Google calendar on the Studio calendar. Sending to it is optional, and Mi only ever changes events it added.</p>
     {!status.hasClient && <div className="mt-3 space-y-2">
       <p className="text-sm text-muted-foreground">Needs a Google Cloud OAuth client (Desktop app type) with the Calendar API turned on. Whoever manages STUDIO’s Google account creates it once.</p>
       <div className="grid gap-2 sm:grid-cols-2">
@@ -54,6 +55,7 @@ export function GoogleCalendarConnection() {
         <button type="button" className={button} disabled={busy} onClick={() => void run(async () => setCalendars(await api.calendars()))}>{status.calendarId ? "Change calendar" : "Load calendars"}</button>
         <button type="button" className={button} disabled={busy} onClick={() => void run(async () => { setStatus(await api.disconnect()); setCalendars([]); })}>Disconnect</button>
       </div>
+      {status.calendarId && <GoogleCalendarSend api={api} status={status} onStatus={setStatus} />}
     </div>}
     {message && <p role="status" className="mt-2 text-sm text-muted-foreground">{message}</p>}
   </section>;

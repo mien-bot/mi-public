@@ -1,6 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { CalendarShortcuts } from "@/components/CalendarParts";
+import { useCalendarKeys } from "@/components/useCalendarKeys";
 import { NotionLink } from "@/components/NotionLink";
 import type { PersonalRecord } from "@/lib/personal/schema";
 
@@ -25,6 +27,13 @@ export function PersonalCalendar({
 }) {
   const today = new Date();
   const [month, setMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const root = useRef<HTMLElement>(null);
+  const { helpOpen, setHelpOpen } = useCalendarKeys(root, {
+    add: () => onCreatePlan(dateKey(new Date())),
+    today: () => { const now = new Date(); setMonth(new Date(now.getFullYear(), now.getMonth(), 1)); },
+    move: (offset) => changeMonth(offset),
+  });
   const scheduled = records.filter((record) => record.schedule);
   const entries = useMemo(() => {
     const map = new Map<string, PersonalRecord[]>();
@@ -49,7 +58,8 @@ export function PersonalCalendar({
   }
 
   return (
-    <section className="rounded-xl border border-border bg-card p-5">
+    <section ref={root} className="rounded-xl border border-border bg-card p-5">
+      {helpOpen && <CalendarShortcuts views={false} onClose={() => setHelpOpen(false)} />}
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-display text-xl font-light">Personal calendar</h2>
@@ -78,7 +88,7 @@ export function PersonalCalendar({
                 </span>
               </div>
               <div className="mt-1 space-y-1">
-                {dayEntries.slice(0, 3).map((record) => {
+                {dayEntries.slice(0, openDay === key ? dayEntries.length : 3).map((record) => {
                   const personalShare = record.personalCalendarShare ?? { status: "local" as const };
                   const reviewable = record.share.status === "local" || personalShare.status === "local";
                   if (reviewable) return (
@@ -99,7 +109,7 @@ export function PersonalCalendar({
                     </button>
                   );
                 })}
-                {dayEntries.length > 3 && <p className="px-1 text-[10px] text-muted-foreground">+{dayEntries.length - 3} more</p>}
+                {dayEntries.length > 3 && <button type="button" onClick={() => setOpenDay(openDay === key ? null : key)} className="px-1 text-[10px] text-link hover:underline">{openDay === key ? "Show less" : `+${dayEntries.length - 3} more`}</button>}
               </div>
             </div>
           );

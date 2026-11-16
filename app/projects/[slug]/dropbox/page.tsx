@@ -23,17 +23,14 @@ export default async function DropboxPage({ params }: { params: Promise<{ slug: 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <h1 className="mt-1 font-display text-2xl font-light tracking-wide">Dropbox Files</h1>
       </div>
 
       {!dropboxDir && (
         <p className="text-sm text-muted-foreground">
-          No Dropbox folder linked. Set <code>dropbox_path</code> in this project&apos;s{" "}
-          <code>project.yaml</code> (relative to your machine&apos;s <code>DROPBOX_ROOT</code> in{" "}
-          <code>.env.local</code>) to browse its real files here.
+          No Dropbox folder is linked yet.{" "}
+          <Link href={`/projects/${slug}/details`} className="text-link underline">Link this project&apos;s folder</Link>{" "}
+          to browse its files here.
         </p>
       )}
       {project.meta.dropbox_path && <DropboxHealthPanel kind="projects" slug={slug} />}

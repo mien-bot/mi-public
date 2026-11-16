@@ -91,6 +91,28 @@ describe("reviewed project sharing", () => {
     saveProjectPdf("fixture", "local.pdf", pdf, preview.fingerprint, true);
     expect((await readProjectDiscovery("fixture")).files[0].path).toBe("outputs/local.pdf");
   });
+  it("lists the newest files across every folder, however many older files sort first", async () => {
+    const older = path.join(dropbox, "partner-project", "03_Production");
+    fs.mkdirSync(older);
+    const lastYear = new Date("2025-01-01T12:00:00Z");
+    for (let index = 0; index < 1001; index++) {
+      const file = path.join(older, `sheet-${index}.pdf`);
+      fs.writeFileSync(file, pdf); fs.utimesSync(file, lastYear, lastYear);
+    }
+    const deep = path.join(dropbox, "partner-project", "09_Permitting", "a", "b", "c", "d", "e", "f", "g", "h", "i");
+    fs.mkdirSync(deep, { recursive: true });
+    fs.writeFileSync(path.join(deep, "city-comments.pdf"), pdf);
+    fs.mkdirSync(path.join(local, "memory"));
+    fs.writeFileSync(path.join(local, "memory", "notes.md"), "notes");
+
+    const result = await readProjectDiscovery("fixture", true);
+    expect(result.files).toHaveLength(1000);
+    expect(result.files[0].name).toBe("city-comments.pdf");
+    expect(result.changes.some(change => change.id === "local:memory/notes.md")).toBe(true);
+    expect(result.complete).toBe(false);
+    expect(result.warnings).toContain("Showing the newest 1,000 files. Use Dropbox files to browse older ones.");
+    expect((await readProjectPdfIndex("fixture")).files[0].name).toBe("city-comments.pdf");
+  });
   it("keeps bounded metadata revisions and their limitations stable across scans", async () => {
     const file = path.join(dropbox, "partner-project", "large.pdf");
     const fd = fs.openSync(file, "wx"); fs.ftruncateSync(fd, 33 * 1024 * 1024); fs.closeSync(fd);

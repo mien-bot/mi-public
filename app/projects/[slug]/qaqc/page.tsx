@@ -31,9 +31,6 @@ export default async function QaqcPage({ params }: { params: Promise<{ slug: str
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <div className="mt-1 flex items-center gap-3">
           <h1 className="font-display text-2xl font-light tracking-wide">QA/QC</h1>
           {completion.total > 0 && (
@@ -108,7 +105,7 @@ export default async function QaqcPage({ params }: { params: Promise<{ slug: str
           </li>
         ))}
         {(!qaqc || qaqc.items.length === 0) && (
-          <p className="text-sm text-muted-foreground">No QA/QC items yet.</p>
+          <li className="text-sm text-muted-foreground">No QA/QC items yet.</li>
         )}
       </ul>
     </div>

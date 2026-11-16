@@ -252,7 +252,7 @@ export function DataFlowMap({
           ref={svgRef}
           data-local-wheel-zoom
           viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          role="img"
+          role="group"
           aria-label={`${title}. Interactive graph with ${nodes.length} nodes and ${allLinks.length} connections.`}
           onPointerMove={movePointer}
           onPointerUp={endPointer}

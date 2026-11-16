@@ -1118,6 +1118,12 @@ body {
   overflow: hidden;
 }
 
+/* xterm fits whole rows and paints only those with the theme, so the remainder of the box shows
+   this element, which its stylesheet makes #000. Same token as currentTerminalTheme's background. */
+.mi-terminal .xterm .xterm-viewport {
+  background-color: var(--background);
+}
+
 .mi-terminal .xterm-viewport {
   scrollbar-color: rgb(117 174 215 / 35%) transparent;
   scrollbar-gutter: stable;
@@ -1342,14 +1348,6 @@ body {
 :root[data-mi-motion="minimal"] .loading-scan::after,
 :root[data-mi-motion="minimal"] .animate-mark-loading g path {
   animation: none;
-}
-
-:root[data-mi-motion="expressive"] .animate-route-enter {
-  filter: drop-shadow(0 10px 24px color-mix(in srgb, var(--accent) 6%, transparent));
-}
-
-:root[data-mi-motion="cinematic"] .animate-route-enter {
-  filter: drop-shadow(0 14px 34px color-mix(in srgb, var(--accent) 10%, transparent));
 }
 
 /*

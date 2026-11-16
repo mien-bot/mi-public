@@ -284,6 +284,18 @@ export const milestoneStatusSchema = z.enum([
   "complete",
 ]);
 
+/** Confirmed STUDIO Schedule Type options used by Mi's project copilot. */
+export const scheduleTypeSchema = z.enum([
+  "Deadline",
+  "Midterm Deadline",
+  "Kick-off",
+  "Meeting",
+  "Client Meeting",
+  "Internal Meeting",
+  "Work Session",
+]);
+export type ScheduleType = z.infer<typeof scheduleTypeSchema>;
+
 export const milestoneSchema = z.object({
   id: z.string(),
   /** Mi-only archive; retained across Notion pulls and reversible from the overview. */
@@ -302,6 +314,10 @@ export const milestoneSchema = z.object({
   sync_key: z.string().nullable().optional(),
   /** A person's own ranking. When absent, the calendars derive a tier from the name. */
   priority: z.enum(["critical", "high", "normal"]).optional(),
+  /** Mi's category. When absent, isScheduleEvent falls back to the name. Never written to Notion. */
+  type: scheduleTypeSchema.optional(),
+  /** Local start as HH:MM, for the hour grid. Absent for an all-day item. */
+  start_time: z.string().regex(/^\d{2}:\d{2}$/).optional(),
 });
 export type Milestone = z.infer<typeof milestoneSchema>;
 
@@ -310,17 +326,6 @@ export const scheduleSchema = z.object({
 });
 export type Schedule = z.infer<typeof scheduleSchema>;
 
-/** Confirmed STUDIO Schedule Type options used by Mi's project copilot. */
-export const scheduleTypeSchema = z.enum([
-  "Deadline",
-  "Midterm Deadline",
-  "Kick-off",
-  "Meeting",
-  "Client Meeting",
-  "Internal Meeting",
-  "Work Session",
-]);
-export type ScheduleType = z.infer<typeof scheduleTypeSchema>;
 
 export const scheduleDraftItemSchema = z.object({
   client_request_id: z.string().min(1),
@@ -1217,6 +1222,8 @@ export const permitQaqcStatusSchema = z.enum([
   "closed",
 ]);
 export type PermitQaqcStatus = z.infer<typeof permitQaqcStatusSchema>;
+/** Reopening a record closed before Mi remembered its prior status lands here. */
+export const PERMIT_QAQC_DEFAULT_REOPEN_STATUS = "in-review";
 
 /** One received/response cycle for an engagement, mirroring the real Received/Sent Dropbox folders. */
 export const permitQaqcRoundSchema = z.object({
@@ -1246,5 +1253,9 @@ export const permitQaqcEngagementSchema = z.object({
   engagement_number: z.string().trim().max(20).nullable().default(null),
   rounds: z.array(permitQaqcRoundSchema).default([]),
   notes: z.string().max(20_000).optional(),
+  /** Set by Mi when status becomes closed. `closed` itself is what archives an engagement. */
+  completed_at: leadDateSchema.optional(),
+  /** The status to return to on reopening. Set by Mi alongside completed_at. */
+  reopen_status: permitQaqcStatusSchema.exclude(["closed"]).optional(),
 });
 export type PermitQaqcEngagement = z.infer<typeof permitQaqcEngagementSchema>;

@@ -4,6 +4,7 @@ import { getAllLeads } from "./leads";
 import { getAllLibraryCollections } from "./library";
 import { getMepFaqDocs } from "./mepFaq";
 import { getAllPermitQaqcEngagements } from "./permitQaqc";
+import { isCurrentProject } from "./projectRedirect";
 import { getProjectDecisions } from "./projectDecisions";
 import { getProjectSiteReports } from "./projectSiteReports";
 import { getProjectArchitectToolkit } from "./projectArchitectTools";
@@ -126,7 +127,7 @@ export function buildSearchIndex(readers: SearchIndexReaders): SearchEntry[] {
     entries.push(entry);
   };
   const projects = readers.getAllProjects().filter((project) =>
-    isPortfolioProject({ slug: project.slug, name: project.meta.name }),
+    isCurrentProject(project) && isPortfolioProject({ slug: project.slug, name: project.meta.name }),
   );
 
   // Preserve the original search-entry order before appending operational sources.

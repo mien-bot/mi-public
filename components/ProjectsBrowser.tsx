@@ -71,7 +71,7 @@ function HealthBadge({ project }: { project: ProjectListEntry }) {
 }
 
 export function ProjectsBrowser({ projects }: { projects: ProjectListEntry[] }) {
-  const { updates, errors: updateErrors, refresh: refreshUpdates } = usePortfolioUpdates(projects.map(p => p.slug));
+  const { updates, errors: updateErrors, refresh: refreshUpdates } = usePortfolioUpdates(projects.filter(p => p.status === "in-progress" || p.status === "not-started").map(p => p.slug));
   const [onlyUpdated, setOnlyUpdated] = useState(false);
   const [updatedFirst, setUpdatedFirst] = useState(false);
   const [query, setQuery] = useState("");

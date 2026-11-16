@@ -169,6 +169,7 @@ function normalizeSettings(input) {
     googleCalendarId: typeof input?.googleCalendarId === "string" && input.googleCalendarId.trim()
       ? input.googleCalendarId.trim().slice(0, 300)
       : null,
+    googleCanSend: input?.googleCanSend === true,
     googleCalendarName: typeof input?.googleCalendarName === "string" && input.googleCalendarName.trim()
       ? input.googleCalendarName.trim().slice(0, 200)
       : null,
@@ -391,7 +392,7 @@ function createConfigStore({ userDataPath, secureStorage, miConfigPath: configur
   }
 
   function clearGoogleCalendar() {
-    updateSettings({ googleCalendarId: null, googleCalendarName: null });
+    updateSettings({ googleCalendarId: null, googleCalendarName: null, googleCanSend: false });
     return clearCredential("googleRefreshToken", "hasGoogleCalendar");
   }
 

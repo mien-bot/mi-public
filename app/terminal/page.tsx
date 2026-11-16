@@ -1,6 +1,7 @@
 import { TerminalWorkspace } from "@/components/TerminalWorkspace";
 import { getAllLeads } from "@/lib/content/leads";
 import { getAllProjects } from "@/lib/content/projects";
+import { isCurrentProject } from "@/lib/content/projectRedirect";
 import {
   isActiveProjectStatus,
   isPortfolioProject,
@@ -8,6 +9,7 @@ import {
 
 export default function GlobalTerminalPage() {
   const projects = getAllProjects()
+    .filter(isCurrentProject)
     .filter((project) =>
       isPortfolioProject({ slug: project.slug, name: project.meta.name })
       && isActiveProjectStatus(project.meta.status),

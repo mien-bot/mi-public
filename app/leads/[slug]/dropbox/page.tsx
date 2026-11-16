@@ -33,7 +33,7 @@ export default async function LeadDropboxPage({ params }: { params: Promise<{ sl
       {!lead.dropbox_path && (
         <p className="text-sm text-muted-foreground">
           No Dropbox folder linked. Set it in the <Link href={`/leads/${slug}`} className="text-link underline hover:no-underline">Edit lead</Link> form
-          (e.g. <code>1.01 LEADS/{dateStampPrefix(lead.date_received)}{lead.name}</code>, relative
+          (e.g. <code>Leads/{dateStampPrefix(lead.date_received)}{lead.name}</code>, relative
           to the Dropbox root chosen in Settings). Save the exact path, then return here to
           review and create the architectural folders.
         </p>

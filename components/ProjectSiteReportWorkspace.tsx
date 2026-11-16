@@ -448,7 +448,7 @@ export function ProjectSiteReportWorkspace({
               {items.map((item, index) => (
                 <div key={item.key} className="rounded-md border border-border p-4">
                   <div className="grid gap-3 md:grid-cols-[15rem_1fr_auto]">
-                    <select className="control" value={item.kind} onChange={(event) => updateItem(item.key, {
+                    <select aria-label="Item type" className="control" value={item.kind} onChange={(event) => updateItem(item.key, {
                       kind: event.target.value as SiteReportItemKind,
                       attributedTo: "",
                       owner: "",

@@ -3,6 +3,9 @@
 import { useState } from "react";
 import type { ScheduleSnapshotEntry } from "@/types/electron";
 import { scheduleEntryTier } from "@/lib/scheduleInsights";
+import { NowLine, useNowMinutes } from "./CalendarParts";
+import { ScheduleKindMark } from "./ScheduleKindMark";
+import { entryKind } from "./ScheduleEntryPeek";
 import { hasMiDragKind, readMiDragData, setMiDragData } from "./miDragData";
 import {
   canDragScheduleEntry,
@@ -94,7 +97,7 @@ function EntryButton({
 }) {
   const time = eventTimeLabel(entry, timezone);
   const draggable = canDragScheduleEntry(entry) && !saving;
-  const dragNote = draggable ? (time ? "Drag to move; Ctrl-drag to duplicate; use the bottom handle to resize" : "Drag to move; Ctrl-drag to duplicate") : "Open in Notion";
+  const dragNote = draggable ? (time ? "Click for details; drag to move; Ctrl-drag to duplicate; use the bottom handle to resize" : "Click for details; drag to move; Ctrl-drag to duplicate") : "Click for details";
   const eventColor = scheduleEntryColor(entry);
   const tier = scheduleEntryTier(entry.type);
   return (
@@ -116,9 +119,9 @@ function EntryButton({
       }}
       title={`${tier === "critical" ? "Critical · " : ""}${time ? `${time} · ` : ""}${entry.name} · ${dragNote}`}
     >
-      {tier === "critical" && <span aria-hidden="true" className="mr-1">◆</span>}
+      <span className="mr-1 inline-flex align-middle"><ScheduleKindMark kind={entryKind(entry)} /></span>
       {time && <span className="mr-1 font-medium">{time}</span>}
-      {entry.name} ↗
+      {entry.name}
     </button>
   );
 }
@@ -133,6 +136,7 @@ export function MonthScheduleView({
   onDragEnd,
   onDrop,
   onCreate,
+  onOpenDay,
   timezone,
   savingEntryId,
 }: {
@@ -145,6 +149,7 @@ export function MonthScheduleView({
   onDragEnd: () => void;
   onDrop: (date: string) => void;
   onCreate: (date: string) => void;
+  onOpenDay: (date: string) => void;
   timezone: string;
   savingEntryId?: string | null;
 }) {
@@ -177,7 +182,8 @@ export function MonthScheduleView({
               setDropDate(null);
               if (payload?.kind === "schedule-entry") onDrop(key);
             }}
-            className={`min-h-28 border-b border-r p-1.5 text-left transition-colors ${dropDate === key ? "border-accent bg-accent/15 ring-2 ring-inset ring-accent/40" : "border-border"} ${currentMonth ? "bg-background" : "bg-muted/30 text-muted-foreground"}`}
+            onClick={(event) => { if (!(event.target as HTMLElement).closest("button")) onCreate(key); }}
+            className={`min-h-28 cursor-pointer border-b border-r p-1.5 text-left transition-colors hover:bg-muted/40 ${dropDate === key ? "border-accent bg-accent/15 ring-2 ring-inset ring-accent/40" : "border-border"} ${currentMonth ? "bg-background" : "bg-muted/30 text-muted-foreground"}`}
           >
             <div className="flex items-center justify-between gap-1">
               <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${key === todayKey ? "bg-accent text-accent-foreground" : ""}`}>{date.getDate()}</span>
@@ -195,7 +201,7 @@ export function MonthScheduleView({
               {dayEntries.slice(0, 3).map((entry) => (
                 <EntryButton key={entry.notion_page_id} entry={entry} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} timezone={timezone} compact saving={savingEntryId === entry.notion_page_id} />
               ))}
-              {dayEntries.length > 3 && <p className="px-1 text-[10px] text-muted-foreground">+{dayEntries.length - 3} more</p>}
+              {dayEntries.length > 3 && <button type="button" onClick={() => onOpenDay(key)} className="px-1 text-[10px] text-link hover:underline">+{dayEntries.length - 3} more</button>}
             </div>
           </div>
         );
@@ -226,13 +232,15 @@ export function TimedScheduleView({
   onDragStart: (entry: ScheduleSnapshotEntry, mode: ScheduleDragMode) => void;
   onDragEnd: () => void;
   onDrop: (date: string, targetMinutes: number) => void;
-  onCreate: (date: string) => void;
+  onCreate: (date: string, startTime?: string) => void;
   timezone: string;
   savingEntryId?: string | null;
   dragging?: { entry: ScheduleSnapshotEntry; mode: ScheduleDragMode } | null;
 }) {
   const [dropDate, setDropDate] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<{ date: string; minutes: number } | null>(null);
+  const nowMinutes = useNowMinutes();
+  const nowInDay = nowMinutes >= DAY_START_MINUTES && nowMinutes <= DAY_END_MINUTES;
   return (
     <div className="mt-3 overflow-x-auto rounded-md border border-border">
       <div className="grid min-w-[48rem]" style={{ gridTemplateColumns: `3.5rem repeat(${days.length}, minmax(0, 1fr))` }}>
@@ -291,6 +299,13 @@ export function TimedScheduleView({
                   setDropTarget(null);
                 }
               }}
+              onClick={(event) => {
+                if ((event.target as HTMLElement).closest("button")) return;
+                const bounds = event.currentTarget.getBoundingClientRect();
+                const fraction = Math.min(1, Math.max(0, (event.clientY - bounds.top) / bounds.height));
+                const halfHours = Math.floor((DAY_START_MINUTES + fraction * (DAY_END_MINUTES - DAY_START_MINUTES)) / 30);
+                onCreate(key, `${String(Math.floor(halfHours / 2)).padStart(2, "0")}:${halfHours % 2 ? "30" : "00"}`);
+              }}
               onDrop={(event) => {
                 event.preventDefault();
                 const payload = readMiDragData(event.dataTransfer);
@@ -303,11 +318,12 @@ export function TimedScheduleView({
                 const snappedMinutes = Math.round(rawMinutes / 15) * 15;
                 onDrop(key, snappedMinutes);
               }}
-              className={`relative min-h-[48rem] border-r border-t bg-background transition-colors last:border-r-0 ${dropDate === key ? "border-accent bg-accent/10 ring-2 ring-inset ring-accent/40" : "border-border"}`}
+              className={`relative min-h-[48rem] cursor-pointer border-r border-t bg-background transition-colors last:border-r-0 ${dropDate === key ? "border-accent bg-accent/10 ring-2 ring-inset ring-accent/40" : "border-border"}`}
               style={{
                 backgroundImage: "repeating-linear-gradient(to bottom, transparent 0, transparent calc(6.25% - 1px), color-mix(in srgb, var(--border) 55%, transparent) calc(6.25% - 1px), color-mix(in srgb, var(--border) 55%, transparent) 6.25%)",
               }}
             >
+              {key === todayKey && nowInDay && <NowLine top={`${((nowMinutes - DAY_START_MINUTES) / (DAY_END_MINUTES - DAY_START_MINUTES)) * 100}%`} />}
               {untimed.length > 0 && (
                 <div className="relative z-10 space-y-1 border-b border-border bg-card/95 p-1.5">
                   {untimed.map((entry) => <EntryButton key={entry.notion_page_id} entry={entry} onOpen={onOpen} onDragStart={onDragStart} onDragEnd={onDragEnd} timezone={timezone} compact saving={savingEntryId === entry.notion_page_id} />)}

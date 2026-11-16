@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getProject, getProjectSlugs, getScheduleWithHash } from "@/lib/content";
 import { ProjectScheduleEditor } from "@/components/ProjectScheduleEditor";
@@ -25,16 +24,12 @@ export default async function SchedulePage({ params }: { params: Promise<{ slug:
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-          </Link>
           <h1 className="mt-1 font-display text-2xl font-light tracking-wide">Plan & Timeline</h1>
         </div>
         {project.meta.notion_page_id && (
           <ProjectNotionSyncButton slug={slug} projectName={project.meta.name} />
         )}
       </div>
-      <ProjectContractPlan slug={slug} initialDetails={details} initialHash={detailsHash} />
       <ProjectScheduleEditor
         slug={slug}
         milestones={schedule.milestones}
@@ -42,7 +37,11 @@ export default async function SchedulePage({ params }: { params: Promise<{ slug:
         notionLinked={Boolean(project.meta.notion_page_id)}
         row={timelineRow({ slug, name: project.meta.name }, schedule.milestones, details)}
       />
-      <ProjectPlanningWorkspace slug={slug} notionLinked={Boolean(project.meta.notion_page_id)} />
+      <ProjectContractPlan slug={slug} initialDetails={details} initialHash={detailsHash} />
+      <details className="rounded-lg border border-border p-4">
+        <summary className="cursor-pointer font-medium">Plan with AI</summary>
+        <div className="mt-4"><ProjectPlanningWorkspace slug={slug} notionLinked={Boolean(project.meta.notion_page_id)} /></div>
+      </details>
     </div>
   );
 }

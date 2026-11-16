@@ -1,3 +1,4 @@
+import { projectFocus, upcomingAgenda } from "./projectSnapshot";
 import { describe, expect, it } from "vitest";
 import { milestoneTrail, scopeExcerpt } from "./projectSnapshot";
 import type { Milestone } from "./schema";
@@ -17,5 +18,28 @@ describe("project snapshot", () => {
     expect(milestoneTrail(records).next.map(item => item.id)).toEqual(["overdue", "later"]);
     expect(records).toEqual(before);
     expect(milestoneTrail([])).toEqual({ total: 0, completed: 0, remaining: 0, next: [] });
+  });
+});
+
+describe("projectFocus", () => {
+  const item = (id: string, name: string, planned_date: string, actual_date: string | null = null) =>
+    ({ id, name, planned_date, actual_date, notion_event_id: null });
+
+  it("leads with an overdue milestone and treats a missed meeting as history", () => {
+    const focus = projectFocus([
+      item("a", "Client Meeting", "2026-10-01"),
+      item("b", "Submit permit set", "2026-10-30"),
+      item("c", "Issue drawings", "2026-11-20"),
+    ], "2026-11-01");
+    expect(focus).toMatchObject({ overdue: true, overdueCount: 1, days: -2 });
+    expect(focus.item?.id).toBe("b");
+  });
+
+  it("falls to the next dated item, of any kind", () => {
+    const milestones = [item("a", "Client Meeting", "2026-10-01"), item("b", "GC Meeting", "2026-11-03"), item("c", "Done", "2026-11-02", "2026-11-01")];
+    const focus = projectFocus(milestones, "2026-11-01");
+    expect(focus).toMatchObject({ overdue: false, days: 2 });
+    expect(focus.item?.id).toBe("b");
+    expect(upcomingAgenda(milestones, "2026-11-01").map((entry) => entry.id)).toEqual(["b"]);
   });
 });

@@ -26,6 +26,7 @@ describe("calendar quick add", () => {
     onDragStart: () => undefined,
     onDragEnd: () => undefined,
     onCreate: () => undefined,
+    onOpenDay: () => undefined,
   };
 
   it("offers an add button on every visible month date", () => {

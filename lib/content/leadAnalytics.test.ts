@@ -16,7 +16,7 @@ const lead: Lead = {
   lost_reason: null,
   converted_project_slug: null,
   converted_date: null,
-  dropbox_path: "1.01 LEADS/Alpha",
+  dropbox_path: "Leads/Alpha",
   contract_stage: "not-sent",
   contract_notes: "",
   notion_page_id: "notion-alpha",

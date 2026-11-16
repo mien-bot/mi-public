@@ -20,7 +20,7 @@ export function WorkspacePaneButton({
   canPopOut = true,
 }: {
   label: string;
-  hint: string;
+  hint?: string;
   icon: ReactNode;
   /** Given for a surface that has its own page; otherwise onOpen handles the primary half. */
   href?: string;
@@ -41,9 +41,9 @@ export function WorkspacePaneButton({
       <span className="shrink-0 text-accent" aria-hidden="true">{icon}</span>
       <span className="min-w-0">
         <span className="block truncate font-medium leading-tight">{label}</span>
-        <span className="block truncate text-[10px] leading-tight text-muted-foreground">
+        {(poppedOut || hint) && <span className="block truncate text-[10px] leading-tight text-muted-foreground">
           {poppedOut ? "In a pinned window" : hint}
-        </span>
+        </span>}
       </span>
     </>
   );

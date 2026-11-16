@@ -54,3 +54,39 @@ export function resolveReviewFolder(
   }
   return { file: path.join(target, REVIEW_FOLDER_FILE), relative: relative || "." };
 }
+
+const RESERVED_NAMES = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$/i;
+
+/** A single folder name that is safe on Windows, macOS, and in Dropbox; never a path. */
+export function validateNewFolderName(input: string): string {
+  const name = input.trim();
+  if (!name) throw new Error("Enter a folder name.");
+  if (name.length > 100) throw new Error("Use a folder name of 100 characters or fewer.");
+  if (/[\\/:*?"<>|\u0000-\u001f]/.test(name)) throw new Error("A folder name can’t contain \\ / : * ? \" < > |.");
+  if (name === "." || name === ".." || /[. ]$/.test(name) || RESERVED_NAMES.test(name)) {
+    throw new Error("Windows can’t use that folder name. Try another.");
+  }
+  return name;
+}
+
+/**
+ * Creates one folder, chosen by the reviewer, inside an existing folder of the workspace's
+ * confirmed Dropbox folder. An existing folder of that name is reused rather than an error.
+ */
+export function createReviewFolder(
+  workspaceFolder: string,
+  parent: string,
+  name: string,
+  dropboxRoot: string | null | undefined = DROPBOX_ROOT,
+): { relative: string; created: boolean } {
+  const folderName = validateNewFolderName(name);
+  const parentTarget = resolveReviewFolder(workspaceFolder, parent, dropboxRoot);
+  const target = path.join(path.dirname(parentTarget.file), folderName);
+  const relative = parentTarget.relative === "." ? folderName : `${parentTarget.relative}/${folderName}`;
+  if (fs.existsSync(target)) {
+    if (!fs.statSync(target).isDirectory()) throw new Error("A file with that name is already there. Choose another name.");
+    return { relative, created: false };
+  }
+  fs.mkdirSync(target);
+  return { relative, created: true };
+}

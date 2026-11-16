@@ -1,4 +1,4 @@
-import type { Milestone, ProjectDetails } from "./schema";
+import type { Milestone, ProjectDetails, ScheduleType } from "./schema";
 
 /** Which schedule items deserve attention first. Derived for display; never written to a record. */
 export type ScheduleTier = "critical" | "high" | "normal" | "low";
@@ -12,6 +12,41 @@ export function milestoneTier(milestone: Pick<Milestone, "name" | "priority">): 
   if (/\b(payment|invoice|kick-?off|review|issue|approval)\b/i.test(milestone.name)) return "high";
   if (/\bmeeting\b/i.test(milestone.name)) return "low";
   return "normal";
+}
+
+const EVENT_TYPES: ReadonlySet<ScheduleType> = new Set(["Meeting", "Client Meeting", "Internal Meeting", "Work Session"]);
+
+/** The stored category, or the best reading of the name for a record saved before categories. */
+export function milestoneCategory(milestone: Pick<Milestone, "name" | "type">): ScheduleType {
+  if (milestone.type) return milestone.type;
+  // Working time first: "Work on X - post-meeting revisions" is not a meeting.
+  if (/\b(daily block|work session|work on)\b/i.test(milestone.name)) return "Work Session";
+  if (/\bclient\b.*\bmeeting\b/i.test(milestone.name)) return "Client Meeting";
+  if (/\bmeeting\b/i.test(milestone.name)) return "Meeting";
+  return "Deadline";
+}
+
+/** Meetings and working time are events; only the rest belong on a milestone calendar. */
+export function isScheduleEvent(milestone: Pick<Milestone, "name" | "type">): boolean {
+  return EVENT_TYPES.has(milestoneCategory(milestone));
+}
+
+/** True when nothing recorded and nothing in the name says what this item is. */
+export function categoryIsGuess(milestone: Pick<Milestone, "name" | "type">): boolean {
+  if (milestone.type) return false;
+  return !/\b(meeting|daily block|work session|work on|deadline|due|submit|submission|submittal|kick-?off|issue|start|end|payment|invoice|permit|review|inspection)\b/i.test(milestone.name);
+}
+
+export type ScheduleKind = "milestone" | "client" | "meeting" | "work";
+
+export function kindOfCategory(category: ScheduleType): ScheduleKind {
+  if (category === "Work Session") return "work";
+  if (category === "Client Meeting") return "client";
+  return category.includes("Meeting") ? "meeting" : "milestone";
+}
+
+export function scheduleKind(milestone: Pick<Milestone, "name" | "type">): ScheduleKind {
+  return kindOfCategory(milestoneCategory(milestone));
 }
 
 /** Tier for a Notion STUDIO Schedule entry, from its existing Type values. */

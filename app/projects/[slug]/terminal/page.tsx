@@ -41,9 +41,7 @@ export default async function ProjectTerminalPage({
           </p>
         </details>
       </div>
-      <div className="h-[85dvh] min-h-[34rem] lg:h-[calc(100dvh-6rem)]">
-        <WorkspaceTerminal workspace={`projects/${slug}`} />
-      </div>
+      <WorkspaceTerminal workspace={`projects/${slug}`} resizable />
     </div>
   );
 }

@@ -24,9 +24,6 @@ export default async function KnowledgePage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <h1 className="mt-1 font-display text-2xl font-light tracking-wide">Knowledge</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Everything confirmed about this project, from chat, a CLI agent proposal, or a review
@@ -36,8 +33,7 @@ export default async function KnowledgePage({
               {" "}
               <span className="text-xs">
                 {knowledge.total} note{knowledge.total === 1 ? "" : "s"}
-                {knowledge.lastUpdated ? ` · updated ${knowledge.lastUpdated}` : ""} ·{" "}
-                <span className="font-mono">{knowledge.relativePath}</span>
+                {knowledge.lastUpdated ? ` · updated ${knowledge.lastUpdated}` : ""}
               </span>
             </>
           )}
@@ -58,7 +54,7 @@ export default async function KnowledgePage({
         <p className="rounded-lg border border-border bg-card p-6 text-sm text-muted-foreground">
           Nothing has been confirmed into this project&apos;s knowledge yet. Confirmed review cards
           and memory notes land here.{" "}
-          <Link href={`/review?workspace=${encodeURIComponent(`project/${slug}`)}`} className="text-link underline-offset-2 hover:underline">
+          <Link href={`/review?workspace=${encodeURIComponent(`project/${slug}`)}`} className="text-link underline underline-offset-2">
             Open the Review Inbox
           </Link>{" "}
           to see what is waiting.

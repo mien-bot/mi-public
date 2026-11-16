@@ -63,8 +63,8 @@ describe("lead terminal runtime", () => {
   });
 
   it("resolves the harness root under the exact confirmed Dropbox folder when it is linked", () => {
-    const item = fixture("1.01 LEADS/Alpha");
-    const dropboxLead = path.join(item.dropboxRoot, "1.01 LEADS", "Alpha");
+    const item = fixture("Leads/Alpha");
+    const dropboxLead = path.join(item.dropboxRoot, "Leads", "Alpha");
     fs.mkdirSync(dropboxLead, { recursive: true });
     const { workspaceRoot, harnessRoot } = resolveLeadHarnessRoot({ ...item, slug: "alpha" });
     expect(workspaceRoot).toBe(fs.realpathSync(dropboxLead));
@@ -85,8 +85,8 @@ describe("lead terminal runtime", () => {
   });
 
   it("starts inside the generated Mi/ folder under the confirmed Dropbox folder once repaired", () => {
-    const item = fixture("1.01 LEADS/Alpha");
-    const dropboxLead = path.join(item.dropboxRoot, "1.01 LEADS", "Alpha");
+    const item = fixture("Leads/Alpha");
+    const dropboxLead = path.join(item.dropboxRoot, "Leads", "Alpha");
     fs.mkdirSync(dropboxLead, { recursive: true });
     writeHarnessStub(path.join(dropboxLead, "Mi"));
     expect(resolveLeadTerminalWorkspace({ ...item, slug: "alpha" })).toBe(
@@ -97,7 +97,7 @@ describe("lead terminal runtime", () => {
   it("rejects traversal and unreachable confirmed folders instead of falling back", () => {
     const traversal = fixture("../outside");
     expect(() => resolveLeadWorkspaceRoot({ ...traversal, slug: "alpha" })).toThrow(/unsafe segment/i);
-    const missing = fixture("1.01 LEADS/Missing");
+    const missing = fixture("Leads/Missing");
     expect(() => resolveLeadWorkspaceRoot({ ...missing, slug: "alpha" })).toThrow(/not reachable/i);
   });
 });

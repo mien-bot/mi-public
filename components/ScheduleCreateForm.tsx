@@ -14,10 +14,12 @@ import { usePersonalTimezone } from "./usePersonalTimezone";
 
 export function ScheduleCreateForm({
   initialDate,
+  initialStartTime = "",
   onCancel,
   onApplied,
 }: {
   initialDate: string;
+  initialStartTime?: string;
   onCancel: () => void;
   onApplied?: () => boolean | void | Promise<boolean | void>;
 }) {
@@ -25,8 +27,12 @@ export function ScheduleCreateForm({
   const [name, setName] = useState("");
   const [date, setDate] = useState(initialDate);
   const [type, setType] = useState<ScheduleType>("Meeting");
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [startTime, setStartTime] = useState(initialStartTime);
+  const [endTime, setEndTime] = useState(() => {
+    if (!initialStartTime) return "";
+    const hour = Math.min(23, Number(initialStartTime.slice(0, 2)) + 1);
+    return `${String(hour).padStart(2, "0")}${initialStartTime.slice(2)}`;
+  });
   const [projectPageId, setProjectPageId] = useState("");
   const [projects, setProjects] = useState<ScheduleProjectOption[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(true);

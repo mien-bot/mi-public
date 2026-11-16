@@ -17,6 +17,9 @@ export function ReviewBatchConfirm({ selectedViews, onClearSelection, onDeselect
   const [choices, setChoices] = useState<Record<string, string>>({});
   const [folders, setFolders] = useState<Record<string, string>>({});
   const [folderError, setFolderError] = useState("");
+  const [folderNotice, setFolderNotice] = useState("");
+  // The group whose "New folder" field is open, and the name typed into it.
+  const [newFolder, setNewFolder] = useState<{ key: string; name: string } | null>(null);
   const [preview, setPreview] = useState<{ key: string; plan: ReviewBatchPlan } | null>(null);
   const [results, setResults] = useState<(ReviewBatchResult[number] & { label: string; href: string })[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -38,11 +41,30 @@ export function ReviewBatchConfirm({ selectedViews, onClearSelection, onDeselect
   const hasNativePicker = typeof window !== "undefined" && Boolean(window.electronAPI?.dropbox?.pickFolderWithin);
 
   async function pickFolder(groupKey: string, folderRoot: string) {
-    setFolderError("");
+    setFolderError(""); setFolderNotice("");
     const result = await window.electronAPI?.dropbox.pickFolderWithin(folderRoot);
     if (!result || result.canceled) return;
     if (result.error) return setFolderError(result.error);
     setFolders(current => ({ ...current, [groupKey]: result.relativePath ?? "." }));
+  }
+
+  async function createFolder(group: (typeof groups)[number]) {
+    if (!newFolder || newFolder.key !== group.key) return;
+    setFolderError(""); setFolderNotice("");
+    const parent = folders[group.key]?.trim() || ".";
+    try {
+      const response = await fetch("/api/review-inbox/folder", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: group.workspace.kind, slug: group.workspace.slug, parent, name: newFolder.name }),
+      });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || "The folder could not be created.");
+      setFolders(current => ({ ...current, [group.key]: data.relative }));
+      setFolderNotice(data.created ? `Created “${data.relative}”.` : `“${data.relative}” already exists, so Mi will use it.`);
+      setNewFolder(null);
+    } catch (cause) {
+      setFolderError(cause instanceof Error ? cause.message : "The folder could not be created.");
+    }
   }
 
   useEffect(() => {
@@ -122,9 +144,26 @@ export function ReviewBatchConfirm({ selectedViews, onClearSelection, onDeselect
               : <input aria-label={`Folder for ${group.workspace.label}`} placeholder="Folder inside the project’s Dropbox folder"
                 value={folders[group.key] ?? ""} onChange={event => setFolders(current => ({ ...current, [group.key]: event.target.value }))}
                 className="w-full max-w-md rounded border border-border bg-background p-2" />}
+            {newFolder?.key === group.key
+              ? <form className="flex w-full flex-wrap items-center gap-2"
+                onSubmit={event => { event.preventDefault(); void createFolder(group); }}>
+                <input autoFocus aria-label={`New folder name for ${group.workspace.label}`} placeholder="New folder name"
+                  value={newFolder.name} onChange={event => setNewFolder({ key: group.key, name: event.target.value })}
+                  className="w-full max-w-xs rounded border border-border bg-background p-2" />
+                <button type="submit" disabled={!newFolder.name.trim()}
+                  className="rounded-md border border-border px-3 py-1.5 disabled:opacity-50">Create folder</button>
+                <button type="button" onClick={() => setNewFolder(null)}
+                  className="rounded-md px-3 py-1.5 text-muted-foreground">Cancel</button>
+                <span className="w-full text-xs text-muted-foreground">
+                  Created in {folders[group.key]?.trim() && folders[group.key] !== "." ? `“${folders[group.key]}”` : "the project’s main folder"}.
+                </span>
+              </form>
+              : <button type="button" onClick={() => { setFolderError(""); setFolderNotice(""); setNewFolder({ key: group.key, name: "" }); }}
+                className="rounded-md border border-border px-3 py-1.5">New folder</button>}
             <span className="w-full text-xs text-muted-foreground">Notes are added to “Mi Review Notes.md” in that folder.</span>
           </div>}
           {folderError && <p role="alert" className="mt-2 text-sm text-destructive">{folderError}</p>}
+          {folderNotice && <p role="status" className="mt-2 text-sm text-muted-foreground">{folderNotice}</p>}
           {plan?.groups[index] && <div className="mt-3">
             {plan.groups[index].plan.blockers.map(message => <p key={message} className="text-sm text-destructive">{message}</p>)}
             <ul className="divide-y divide-border">

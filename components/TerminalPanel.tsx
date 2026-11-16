@@ -7,6 +7,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { terminalFileLinkProvider, terminalWebLink } from "./terminalLinks";
 import "@xterm/xterm/css/xterm.css";
 import { terminalClipboardAction } from "./terminalClipboard";
+import { plainTerminalText } from "./terminalPlainCopy";
 import { IME_SPACE_GRACE_MS, isImeClaimedSpace } from "./terminalImeSpace";
 import {
   latestTerminalProposalBlock,
@@ -90,10 +91,12 @@ function TerminalView({
   const activeRef = useRef(active);
   const followOutputRef = useRef(true);
   const fontSizeRef = useRef(DEFAULT_FONT_SIZE);
-  const copySelectionRef = useRef<() => void>(() => undefined);
+  const copySelectionRef = useRef<(plain?: boolean) => void>(() => undefined);
   const pasteClipboardRef = useRef<() => void>(() => undefined);
   const captureProposalsRef = useRef<() => Promise<void>>(async () => undefined);
   const lastCapturedProposalRef = useRef<string | null>(null);
+  // True from Send to Meetings until the next keystroke: the request is still sitting unsent.
+  const meetingPromptTypedRef = useRef(false);
   const [generation, setGeneration] = useState(0);
   const [fontSize, setFontSize] = useState(DEFAULT_FONT_SIZE);
   const [fontPreferenceLoaded, setFontPreferenceLoaded] = useState(false);
@@ -374,6 +377,8 @@ function TerminalView({
       imeSpaceCount = 0;
       if (terminalId !== null) api.terminal.write(terminalId, data);
     });
+    // onKey, not onData: onData also carries the terminal's own replies, such as focus reports.
+    const onKey = term.onKey(() => { meetingPromptTypedRef.current = false; });
 
     let clipboardMessageTimer: number | null = null;
     const showClipboardMessage = (message: string) => {
@@ -381,12 +386,13 @@ function TerminalView({
       if (clipboardMessageTimer !== null) window.clearTimeout(clipboardMessageTimer);
       clipboardMessageTimer = window.setTimeout(() => setClipboardMessage(""), 1800);
     };
-    const copySelection = async () => {
+    // plain: without the agent's indent and line wraps, for pasting into email or messages.
+    const copySelection = async (plain = false) => {
       const selection = term.getSelection();
       if (!selection) return;
       try {
-        await navigator.clipboard.writeText(selection);
-        showClipboardMessage("Copied");
+        await navigator.clipboard.writeText(plain ? plainTerminalText(selection, term.cols) : selection);
+        showClipboardMessage(plain ? "Copied as text" : "Copied");
       } catch {
         showClipboardMessage("Copy unavailable");
       }
@@ -400,7 +406,7 @@ function TerminalView({
         showClipboardMessage("Paste unavailable");
       }
     };
-    copySelectionRef.current = () => void copySelection();
+    copySelectionRef.current = (plain) => void copySelection(plain);
     pasteClipboardRef.current = () => void pasteClipboard();
     captureProposalsRef.current = async () => {
       if (!projectSlug) return;
@@ -489,6 +495,7 @@ function TerminalView({
       return true;
     });
 
+    let fitting = false;
     const fit = (force = false) => {
       const container = containerRef.current;
       if (!container) return;
@@ -498,7 +505,15 @@ function TerminalView({
       };
       if (!shouldFitTerminal(activeRef.current, measurement, lastFitMeasurement, force)) return;
       lastFitMeasurement = measurement;
+      // Reflow fires scroll events that are not the person scrolling. Left alone they turn
+      // auto-follow off and strand the view at the top of the buffer after a restore.
+      const following = followOutputRef.current;
+      const viewportLine = term.buffer.active.viewportY;
+      fitting = true;
       fitAddon.fit();
+      if (following) term.scrollToBottom();
+      else term.scrollToLine(Math.min(viewportLine, term.buffer.active.baseY));
+      fitting = false;
       if (
         terminalId !== null
         && term.cols > 0
@@ -514,6 +529,7 @@ function TerminalView({
     fit(true);
 
     const onScroll = term.onScroll((viewportY) => {
+      if (fitting) return;
       const atBottom = viewportY >= term.buffer.active.baseY;
       if (atBottom === followOutputRef.current) return;
       followOutputRef.current = atBottom;
@@ -555,14 +571,26 @@ function TerminalView({
     });
     resizeObserver.observe(containerRef.current);
 
+    const onWindowReturn = () => {
+      if (document.hidden) return;
+      fit(true);
+      if (followOutputRef.current) term.scrollToBottom();
+    };
+    document.addEventListener("visibilitychange", onWindowReturn);
+    window.addEventListener("focus", onWindowReturn);
+
     return () => {
       disposed = true;
+      document.removeEventListener("visibilitychange", onWindowReturn);
+      window.removeEventListener("focus", onWindowReturn);
       if (outputFrame !== null) cancelAnimationFrame(outputFrame);
       if (imeSpaceTimer !== null) window.clearTimeout(imeSpaceTimer);
       if (resizeTimer !== null) window.clearTimeout(resizeTimer);
       if (clipboardMessageTimer !== null) window.clearTimeout(clipboardMessageTimer);
       resizeObserver.disconnect();
       onInput.dispose();
+      onKey.dispose();
+      meetingPromptTypedRef.current = false;
       onScroll.dispose();
       onSelectionChange.dispose();
       offData();
@@ -610,7 +638,16 @@ function TerminalView({
             <p className="truncate text-[10px] capitalize text-muted-foreground">{workspaceLabel}</p>
           </div>
         </div>
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+        <div
+          className="ml-auto flex flex-wrap items-center justify-end gap-2"
+          onClick={(event) => {
+            // A clicked button keeps keyboard focus, so the Enter meant for the shell would
+            // click it again. detail is 0 for keyboard activation, which keeps its place.
+            if (event.detail > 0 && event.target instanceof Element && event.target.closest("button")) {
+              terminalRef.current?.focus();
+            }
+          }}
+        >
           <PdfBrandExport />
           {projectSlug && (
             <div className="flex items-center rounded-md border border-accent/50 bg-accent/10">
@@ -637,7 +674,11 @@ function TerminalView({
                 onClick={() => {
                   const id = terminalIdRef.current;
                   // Typed, never submitted: in a plain shell this is text, not a command to run.
-                  if (id !== null) window.electronAPI?.terminal.write(id, MEETING_PROMPT);
+                  if (id !== null && !meetingPromptTypedRef.current) {
+                    meetingPromptTypedRef.current = true;
+                    window.electronAPI?.terminal.write(id, MEETING_PROMPT);
+                  }
+                  terminalRef.current?.focus();
                 }}
                 title="Types a request for the running agent to file its meeting notes. Press Enter to send it."
                 className="h-7 border-l border-accent/40 px-2 text-[10px] text-accent transition-colors hover:bg-accent/20"
@@ -655,6 +696,15 @@ function TerminalView({
               className="h-7 px-2 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
             >
               Copy
+            </button>
+            <button
+              type="button"
+              onClick={() => copySelectionRef.current(true)}
+              disabled={!hasSelection}
+              title="Copy selected text without the terminal's indents and line breaks, for email or messages"
+              className="h-7 border-l border-border px-2 text-[10px] text-muted-foreground transition-colors hover:text-foreground disabled:opacity-35"
+            >
+              Copy text
             </button>
             <button
               type="button"
@@ -782,7 +832,7 @@ function TerminalView({
         </div>
       )}
       <div
-        className={`mi-terminal mi-terminal-surface ${compact ? "min-h-48 flex-1 shrink-0" : "h-[70vh]"}`}
+        className={`mi-terminal mi-terminal-surface relative ${compact ? "min-h-48 flex-1 shrink-0" : "h-[70vh]"}`}
         onClick={() => containerRef.current
           ?.querySelector<HTMLTextAreaElement>(".xterm-helper-textarea")
           ?.focus()}
@@ -790,6 +840,21 @@ function TerminalView({
         {/* FitAddon measures its parent. Keep that box unpadded and independent
             of xterm's rows so fitting cannot grow its own ResizeObserver target. */}
         <div ref={containerRef} className="mi-terminal-viewport" />
+        <button
+          type="button"
+          aria-label="Go to bottom"
+          title="Go to bottom"
+          onClick={(event) => {
+            event.stopPropagation();
+            setFollowOutput(true);
+            terminalRef.current?.scrollToBottom();
+            terminalRef.current?.focus();
+            event.currentTarget.parentElement?.scrollIntoView({ block: "end" });
+          }}
+          className={`absolute bottom-2 right-4 z-10 grid h-8 w-8 place-items-center rounded-full border border-border bg-card text-sm text-foreground shadow transition-opacity hover:border-accent ${followOutput ? "opacity-40 hover:opacity-100" : "opacity-100"}`}
+        >
+          ↓
+        </button>
       </div>
     </section>
   );

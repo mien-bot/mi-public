@@ -1,6 +1,6 @@
 {
   "name": "mi-workspace",
-  "version": "0.6.0",
+  "version": "0.6.10",
   "productName": "Mi",
   "description": "Local-first project operations workspace",
   "author": "Mi contributors",
@@ -18,6 +18,11 @@
     "build:desktop": "node scripts/build-desktop.mjs",
     "build:revit": "node scripts/build-revit.cjs",
     "build:autocad": "node scripts/build-autocad.cjs",
+    "test:desktop:plan": "node scripts/verify-plan.cjs",
+    "test:desktop:asks": "node scripts/verify-asks.cjs",
+    "test:desktop:terminal": "node scripts/verify-terminal.cjs",
+    "test:desktop:calendars": "node scripts/verify-calendars.cjs",
+    "test:desktop:google-send": "node scripts/verify-google-send.cjs",
     "test:desktop:cad": "node scripts/verify-cad.cjs",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint",
@@ -114,13 +119,14 @@
           ]
         },
         {
-          "from": "integrations/autocad/artifacts/2027",
-          "to": "autocad/2027",
+          "from": "integrations/autocad/artifacts/bundle",
+          "to": "autocad",
           "filter": [
-            "Mi.AutoCAD.dll",
-            "Mi.AutoCAD.deps.json",
             "PackageContents.xml",
-            "payload.json"
+            "payload.json",
+            "R26.0/Mi.AutoCAD.dll",
+            "R26.0/Mi.AutoCAD.deps.json",
+            "R24.3/Mi.AutoCAD.dll"
           ]
         }
       ],

@@ -5,8 +5,30 @@ const GUIDE = `# Mi CAD drawing guide
 ## Start
 - Query status first. State INSUNITS and whether the UCS is world before using coordinates.
 - Query layers, blocks, and extents. Place new work clear of existing extents unless asked otherwise.
-- Pair the exact model or drawing. Mi targets AutoCAD 2027 only, and other installed releases do not
-  load the bridge. An AutoCAD title bar showing Education is not for firm work: say so.
+- Pair the exact model or drawing. Mi supports full AutoCAD 2024 and 2027; status reports which
+  release is connected. LT, verticals, and other releases do not load the bridge. An AutoCAD title
+  bar showing Education is not for firm work: say so.
+
+## Units are sometimes wrong
+- INSUNITS is a label, not proof. Before trusting it, check one known size: a dimension's
+  measurement against its text, a door (about 3' or 900 mm), a sheet border, or a grid spacing.
+- INSUNITS 0 (no units) or a label that contradicts the geometry: say what you found and ask the
+  person what the drawing is really in. Do not guess.
+- Between drawings, copy_from_drawing and attach_xref scale from the source's INSUNITS to the
+  target's automatically and state the factor in the review. When either label is missing or
+  wrong, pass unit_scale with the factor the person confirmed, and say so in one line.
+- Read the review's size line: a 30 m plan arriving as 30 mm means the units are wrong.
+
+## Between drawings
+- copy_from_drawing copies natively: blocks, hatches, dimensions, layers, and styles survive.
+  Prefer it to redrawing from coordinates. Layers or blocks of the same name already in the
+  target keep the target's settings; the review lists them.
+- Choose what to copy by handles from a query, or by source_area, such as a viewport's modelArea.
+  base_point in the source lands at position in the target.
+- attach_xref references a saved drawing instead of copying it: use it for backgrounds that
+  change, such as a structural grid under an architectural plan. Overlay (the default) does not
+  carry into drawings that reference this one. It shows the file as last saved.
+- Both need the two drawings open in the same AutoCAD. Use acad_open_drawing to bring one there.
 
 ## Plan the drawing before sending it
 - Choose real size first. Draw at 1:1 in drawing units. Annotation height follows plot scale: for
@@ -35,10 +57,36 @@ const GUIDE = `# Mi CAD drawing guide
 - Point the arrow at the object itself, not at empty space near it.
 - Use create_text only for labels with no target, such as titles and INTERIOR or EXTERIOR.
 
+## Editing existing text
+- Find it first: query entities with text (matches TEXT, MTEXT, and leader wording) or kind entity.
+- edit_text with find and replace changes only that wording and keeps MTEXT formatting; text
+  replaces everything and drops formatting. Say which you used.
+- Block attributes use set_attribute with the TAG names from an entity query. Table cells use
+  set_table_cells.
+
+## Tables
+- Use create_table for schedules, legends, and data, never lines plus text. Give a title, set
+  header true for column names, and use column_widths sized to the longest entry at the text height.
+- Rows and columns count from 0, and a title is row 0. Read the table back with kind entity.
+- To add rows later, set_table_cells with cells appends them; cell_updates changes existing cells.
+
+## Charts
+- create_chart draws bar, line, or pie charts as plain geometry, hatches, and text: it is a
+  picture, not linked data. Put the numbers in a table beside it when the person needs them.
+- Values must be zero or positive. Size the chart in drawing units for its plot scale, and leave
+  room below and left of the position for labels. Give a distinct color per pie slice.
+
+## Hatches, dimensions, blocks
+- create_hatch fills a closed boundary (SOLID or a predefined pattern) and is not associative:
+  it does not follow later boundary edits. Pattern scale follows plot scale like text height.
+- create_dimension uses the drawing's current dimension style and measures the real geometry.
+  Use it instead of lines plus text. Rotated (rotation_degrees) is linear; otherwise aligned.
+- insert_block needs a block already defined in the drawing; query blocks for names and tags.
+- mirror keeps the originals by default and mirrors text too; check readability after.
+
 ## Current limits: say these plainly
-- No hatch: show insulation with crossing lines and leave concrete unfilled. Mention both.
 - No linetypes: dashed flashing is a solid colored line. Mention it.
-- No dimension objects: lines plus text are not associative. Mention it.
+- No new text or dimension styles, and no external block files: only what the drawing has.
 - No view of the drawing: you read coordinates, not the picture. Say the result was not visually
   checked and ask the person to run ZOOM then E and review it.
 - No save, plot, or undo tool. The person saves, and one U reverses the last edit. U removes the

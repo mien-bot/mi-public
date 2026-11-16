@@ -133,11 +133,11 @@ export function ProjectDocuments({
           );
         })}
         {documents.length === 0 && (
-          <p className="text-sm text-muted-foreground">
+          <li className="text-sm text-muted-foreground">
             {folderFiles.length > 0
               ? "No reviewed metadata entries yet. The files above remain available; indexing only adds curated titles, tags, and notes."
               : emptyHint}
-          </p>
+          </li>
         )}
       </ul>
       </section>

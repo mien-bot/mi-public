@@ -32,9 +32,7 @@ export default async function LeadTerminalPage({ params }: { params: Promise<{ s
           on the lead page when you want to review the exact file changes first.
         </p>
       </div>
-      <div className="h-[70dvh] min-h-[34rem] lg:h-[calc(100dvh-15rem)]">
-        <WorkspaceTerminal workspace={`leads/${slug}`} />
-      </div>
+      <WorkspaceTerminal workspace={`leads/${slug}`} resizable />
     </div>
   );
 }

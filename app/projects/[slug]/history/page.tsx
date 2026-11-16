@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getProject, getProjectSlugs, getProjectTimeline, type TimelineEntryType } from "@/lib/content";
+import { getProjectSlugs, getProjectTimeline, type TimelineEntryType } from "@/lib/content";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function generateStaticParams() {
@@ -22,15 +21,11 @@ export default async function HistoryPage({ params }: { params: Promise<{ slug: 
   const slugs = new Set(getProjectSlugs());
   if (!slugs.has(slug)) notFound();
 
-  const project = getProject(slug);
   const timeline = getProjectTimeline(slug);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <h1 className="mt-1 font-display text-2xl font-light tracking-wide">History</h1>
       </div>
 
@@ -48,7 +43,7 @@ export default async function HistoryPage({ params }: { params: Promise<{ slug: 
             {entry.status && <StatusBadge status={entry.status} />}
           </li>
         ))}
-        {timeline.length === 0 && <p className="text-sm text-muted-foreground">No history recorded yet.</p>}
+        {timeline.length === 0 && <li className="text-sm text-muted-foreground">No history recorded yet.</li>}
       </ul>
     </div>
   );

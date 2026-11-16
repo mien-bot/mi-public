@@ -98,9 +98,8 @@ export default async function CodesPage() {
           <div className="rounded-lg border border-border p-4 text-sm text-muted-foreground">
             <p className="font-medium text-foreground">Private library unavailable on this machine</p>
             <p className="mt-1">
-              {localLibrary.message} Set <code>MI_CODE_LIBRARY_ROOT</code> in <code>.env.local</code> to
-              a local copy of the private source library. The firm-authored summaries above remain
-              available without it.
+              {localLibrary.message} Choose the code library folder in Settings. The firm-authored
+              summaries above remain available without it.
             </p>
           </div>
         )}

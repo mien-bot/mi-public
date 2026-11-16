@@ -11,23 +11,20 @@ import {
   type ProjectKnowledge,
 } from "@/lib/content/projectKnowledge";
 
-const PREVIEW_LIMIT = 320;
+const PREVIEW_LIMIT = 220;
 
 function Entry({ entry }: { entry: KnowledgeEntry }) {
   const [expanded, setExpanded] = useState(false);
-  const long = entry.body.length > PREVIEW_LIMIT;
+  const long = entry.summary.length > PREVIEW_LIMIT;
   return (
     <li className="rounded-md border border-border bg-card p-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-medium">{entry.title}</h3>
-        <span className="text-xs text-muted-foreground">
-          {entry.date ?? "no date recorded"}
-          {entry.entryKind ? ` · ${entry.entryKind}` : ""}
-        </span>
+        {entry.date && <span className="text-xs text-muted-foreground">{entry.date}</span>}
       </div>
-      {entry.body && (
+      {entry.summary && (
         <p className="mt-1 whitespace-pre-line text-sm text-muted-foreground">
-          {expanded || !long ? entry.body : `${entry.body.slice(0, PREVIEW_LIMIT)}…`}
+          {expanded || !long ? entry.summary : `${entry.summary.slice(0, PREVIEW_LIMIT).trimEnd()}…`}
           {long && (
             <button
               type="button"
@@ -38,6 +35,12 @@ function Entry({ entry }: { entry: KnowledgeEntry }) {
             </button>
           )}
         </p>
+      )}
+      {entry.details && (
+        <details className="mt-2 text-xs text-muted-foreground">
+          <summary className="cursor-pointer">Details</summary>
+          <p className="mt-1 whitespace-pre-line break-words">{entry.details}</p>
+        </details>
       )}
     </li>
   );
@@ -83,7 +86,7 @@ export function ProjectKnowledgeBrowser({ knowledge }: { knowledge: ProjectKnowl
               group === "all" ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground hover:border-accent"
             }`}
           >
-            Everything <span className="opacity-70">{knowledge.total}</span>
+            Everything <span>{knowledge.total}</span>
           </button>
           {populated.map((candidate) => (
             <button
@@ -95,7 +98,7 @@ export function ProjectKnowledgeBrowser({ knowledge }: { knowledge: ProjectKnowl
                 group === candidate ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground hover:border-accent"
               }`}
             >
-              {KNOWLEDGE_GROUP_LABELS[candidate]} <span className="opacity-70">{knowledge.counts[candidate]}</span>
+              {KNOWLEDGE_GROUP_LABELS[candidate]} <span>{knowledge.counts[candidate]}</span>
             </button>
           ))}
         </div>

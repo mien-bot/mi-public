@@ -39,7 +39,7 @@ const lead = {
   lost_reason: null,
   converted_project_slug: null,
   converted_date: null,
-  dropbox_path: "1.01 LEADS/26_0715_example-record-70",
+  dropbox_path: "Leads/26_0715_example-record-70",
   contract_stage: "not-sent",
   contract_notes: "",
   notion_page_id: null,

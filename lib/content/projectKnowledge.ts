@@ -37,6 +37,10 @@ export interface KnowledgeEntry {
   /** The heading with Mi's own "<kind> note — <date> — " prefix removed. */
   title: string;
   body: string;
+  /** The body a person reads first, without Mi's import line, reasons, or evidence. */
+  summary: string;
+  /** Everything held back from `summary`, for a Details dropdown. Empty when nothing was. */
+  details: string;
   /** The untouched `## ` heading, so a person can still find the line in the file. */
   heading: string;
 }
@@ -52,6 +56,22 @@ export interface KnowledgeEntry {
 /* Numbered rather than named groups: this repository's TypeScript target predates them. */
 const MI_HEADING = /^([a-z][a-z-]*)\s+note\s+[—–-]\s+(\d{4}-\d{2}-\d{2})\s+[—–-]\s+(.+)$/i;
 
+const IMPORT_LINE = /^_(Imported from|Confirmed|Saved from)\b.*_\s*$/i;
+const DETAIL_START = /^\*\*(Why it was recorded|Evidence|Source|Sources)\b/i;
+
+/** Reading aid only: the file keeps every line, and search still covers the whole body. */
+export function splitKnowledgeBody(body: string): { summary: string; details: string } {
+  const summary: string[] = [];
+  const details: string[] = [];
+  let inDetails = false;
+  for (const line of body.split(/\r?\n/)) {
+    if (IMPORT_LINE.test(line.trim())) { details.push(line); continue; }
+    if (DETAIL_START.test(line.trim())) inDetails = true;
+    (inDetails ? details : summary).push(line);
+  }
+  return { summary: summary.join("\n").trim(), details: details.join("\n").trim() };
+}
+
 export function classifyKnowledgeSection(section: ProjectMemorySection, index: number): KnowledgeEntry {
   const match = MI_HEADING.exec(section.title.trim());
   if (!match) {
@@ -62,6 +82,7 @@ export function classifyKnowledgeSection(section: ProjectMemorySection, index: n
       date: null,
       title: section.title,
       body: section.body,
+      ...splitKnowledgeBody(section.body),
       heading: section.title,
     };
   }
@@ -73,6 +94,7 @@ export function classifyKnowledgeSection(section: ProjectMemorySection, index: n
     date: match[2],
     title: match[3].trim(),
     body: section.body,
+    ...splitKnowledgeBody(section.body),
     heading: section.title,
   };
 }

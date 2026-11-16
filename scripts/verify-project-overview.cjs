@@ -32,7 +32,7 @@ Object.assign(env,{MI_USER_DATA_DIR:profile,NOTION_API_KEY:'mi-test-disabled',CL
 if (executable) env.PATH = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32');
 let app,browser;
 async function verify(page,label){
- await page.getByRole('heading',{name:'Project in a minute',exact:true}).waitFor({timeout:120000});
+ await page.getByRole('region',{name:'Project in a minute',exact:true}).waitFor({timeout:120000});
  for(const name of ['Read full scope','Files & shared work','Project facts: fee, scope & connections','Milestone details & archive','Recent activity & project knowledge']){
   const summary=page.getByText(name,{exact:true});assert.equal(await summary.locator('..').getAttribute('open'),null);
   await summary.focus();await page.keyboard.press('Enter');assert.notEqual(await summary.locator('..').getAttribute('open'),null);

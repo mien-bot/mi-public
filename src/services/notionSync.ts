@@ -1,3 +1,4 @@
+import { scheduleTypeSchema } from "@/lib/schema";
 import fs from "node:fs";
 import path from "node:path";
 import { dump as dumpYaml } from "js-yaml";
@@ -65,6 +66,8 @@ export function planMilestoneChanges(
 
   for (const entry of milestoneEntries) {
     const current = bySlugId.get(entry.id);
+    const knownType = scheduleTypeSchema.safeParse(entry.type?.[0]).data;
+    const startTime = /T(\d{2}:\d{2})/.exec(entry.date ?? "")?.[1];
     if (!current) {
       changes.push({
         record: "schedule",
@@ -80,9 +83,21 @@ export function planMilestoneChanges(
           planned_date: entry.date,
           actual_date: null,
           notion_event_id: entry.id,
+          ...(knownType ? { type: knownType } : {}),
+          ...(startTime ? { start_time: startTime } : {}),
         });
       }
       continue;
+    }
+    if ((knownType && !current.type) || (startTime && !current.start_time)) {
+      const idx = updatedMilestones.findIndex((m) => m.notion_event_id === entry.id);
+      if (idx >= 0) {
+        updatedMilestones[idx] = {
+          ...updatedMilestones[idx],
+          ...(knownType && !current.type ? { type: knownType } : {}),
+          ...(startTime && !current.start_time ? { start_time: startTime } : {}),
+        };
+      }
     }
     if (entry.date && current.planned_date !== entry.date) {
       changes.push({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { usePathname } from "next/navigation";
+import { ProjectPageGuide } from "@/components/ProjectPageGuide";
 import { AppIcon, type AppIconName } from "./AppIcon";
 import { MiMark } from "./MiMark";
 import { WorkspacePaneButton } from "./WorkspacePaneButton";
@@ -62,11 +63,11 @@ export function projectWorkspaceActivePath(pathname: string, slug: string): stri
   return route ? `/${route}` : "";
 }
 
-export function CurrentProjectWorkspaceNav({ slug }: { slug: string }) {
-  return <ProjectWorkspaceNav slug={slug} active={projectWorkspaceActivePath(usePathname(), slug)} />;
+export function CurrentProjectWorkspaceNav({ slug, name }: { slug: string; name?: string }) {
+  return <ProjectWorkspaceNav slug={slug} name={name} active={projectWorkspaceActivePath(usePathname(), slug)} />;
 }
 
-export function ProjectWorkspaceNav({ slug, active = "" }: { slug: string; active?: string }) {
+export function ProjectWorkspaceNav({ slug, name = slug, active = "" }: { slug: string; name?: string; active?: string }) {
   const [toolQuery, setToolQuery] = useState("");
   const matchesTool = ([label, route]: readonly [string, string, AppIconName]) =>
     `${label} ${route}`.toLowerCase().includes(toolQuery.trim().toLowerCase());
@@ -96,21 +97,20 @@ export function ProjectWorkspaceNav({ slug, active = "" }: { slug: string; activ
       aria-label="Project workspace"
       className="project-workspace-nav surface-depth rounded-xl border border-border bg-card p-3"
     >
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">Project workspace · {activeLabel}</p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
-            <Link href={`/projects/${slug}/details`} aria-current={active === "/details" ? "page" : undefined} className="text-link underline-offset-4 hover:underline">Edit project</Link>
-            <Link href={`/review?workspace=${encodeURIComponent(`project/${slug}`)}`} className="text-link underline-offset-4 hover:underline">Review inbox</Link>
-            {terminalEnabled && terminalWindowCount > 0 && <Link href={`/projects/${slug}/terminal`} className="text-link underline-offset-4 hover:underline">
-              {terminalWindowCount} terminal {terminalWindowCount === 1 ? "window" : "windows"} open
-            </Link>}
-          </div>
-        </div>
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Project workspace modes">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="flex min-w-0 items-baseline gap-2">
+          <Link href="/projects" className="shrink-0 text-sm text-muted-foreground hover:text-foreground hover:underline">Projects</Link>
+          <span aria-hidden="true" className="text-muted-foreground">/</span>
+          <Link href={`/projects/${slug}`} className="truncate font-medium hover:underline">{name}</Link>
+        </p>
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Project workspace modes">
+          {terminalEnabled && terminalWindowCount > 0 && <Link href={`/projects/${slug}/terminal`} className="text-xs text-link underline-offset-4 hover:underline">
+            {terminalWindowCount} terminal {terminalWindowCount === 1 ? "window" : "windows"} open
+          </Link>}
+          <Link href={`/review?workspace=${encodeURIComponent(`project/${slug}`)}`} className="text-sm text-link underline-offset-4 hover:underline">Review inbox</Link>
+          <Link href={`/projects/${slug}/details`} aria-current={active === "/details" ? "page" : undefined} className="text-sm text-link underline-offset-4 hover:underline">Edit project</Link>
           <WorkspacePaneButton
             label="Talk to Mi"
-            hint="Reviewed drafts and proposals"
             icon={<MiMark gradient className="h-4 w-4" />}
             onOpen={() => openProjectChat()}
             onPopOut={() => openChatPane(slug)}
@@ -119,7 +119,6 @@ export function ProjectWorkspaceNav({ slug, active = "" }: { slug: string; activ
           {terminalEnabled && (
             <WorkspacePaneButton
               label="Terminal"
-              hint="Direct project shell"
               icon={<AppIcon name="studio" className="h-4 w-4" />}
               href={`/projects/${slug}/terminal`}
               onPopOut={() => openTerminalPane(terminalWorkspace)}
@@ -128,6 +127,7 @@ export function ProjectWorkspaceNav({ slug, active = "" }: { slug: string; activ
               poppedOut={panes.terminals?.some((pane) => pane.workspace === terminalWorkspace && pane.session === "1") ?? false}
             />
           )}
+          <ProjectPageGuide pathname={`/projects/${slug}${active}`} />
         </div>
       </div>
 
@@ -141,7 +141,7 @@ export function ProjectWorkspaceNav({ slug, active = "" }: { slug: string; activ
         </select>
       </label>
       <button type="button" onClick={() => openProjectChat("interview")} className="mt-2 rounded-md border border-border px-3 py-2 text-sm sm:hidden">Guided interview</button>
-      <div className="mt-3 hidden flex-wrap gap-x-3 gap-y-1 sm:flex" aria-label="Daily project sections">
+      <div className="mt-2 hidden flex-wrap items-center gap-x-3 gap-y-1 sm:flex" aria-label="Daily project sections">
         {DAILY_WORKSPACE_ITEMS.map(([label, suffix, icon]) => (
           <Link
             key={label}

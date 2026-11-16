@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { Milestone, ScheduleDraftItem } from "@/lib/schema";
-import { syncScheduleItems } from "./notionScheduleSync";
+import { sendKeyFor, sendLocalMilestoneToNotion, syncScheduleItems } from "./notionScheduleSync";
 
 function item(id: string, name = id): ScheduleDraftItem {
   return {
@@ -112,5 +112,67 @@ describe("confirmation-gated Notion schedule sync", () => {
     });
     expect(results[0].status).toBe("pending-review");
     expect(create).not.toHaveBeenCalled();
+  });
+});
+
+describe("sending a Mi-only item to Notion", () => {
+  const local: Milestone = { id: "local-1", name: "Client walkthrough", planned_date: "2026-11-20", actual_date: null, notion_event_id: null, sync_key: null, type: "Client Meeting", start_time: "10:00" };
+  function setup(first: Milestone = local) {
+    const state = { milestones: [first] };
+    return { state, repository: { load: () => state.milestones, save: (milestones: Milestone[]) => { state.milestones = milestones; } } };
+  }
+  const send = (repository: ReturnType<typeof setup>["repository"], create: ReturnType<typeof vi.fn>) => sendLocalMilestoneToNotion({
+    id: "local-1", projectPageId: "project", startTime: "2026-11-20T10:00:00-06:00", endTime: "2026-11-20T11:00:00-06:00", repository, adapter: { create },
+  });
+
+  it("links the same item, with its type and time, and does not add a second one", async () => {
+    const { state, repository } = setup();
+    const create = vi.fn().mockResolvedValue({ id: "event-1", url: "u" });
+    expect((await send(repository, create)).status).toBe("success");
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ projectPageId: "project", type: "Client Meeting", startTime: "2026-11-20T10:00:00-06:00", status: "Not started" }));
+    expect(state.milestones).toEqual([expect.objectContaining({ id: "local-1", notion_event_id: "event-1" })]);
+  });
+
+  it("does nothing the second time", async () => {
+    const { repository } = setup();
+    const create = vi.fn().mockResolvedValue({ id: "event-1", url: "u" });
+    await send(repository, create);
+    expect((await send(repository, create)).status).toBe("already-applied");
+    expect(create).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends a finished item as done", async () => {
+    const { repository } = setup({ ...local, actual_date: "2026-11-01" });
+    const create = vi.fn().mockResolvedValue({ id: "event-1", url: "u" });
+    await send(repository, create);
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({ status: "Done", completedDate: "2026-11-01" }));
+  });
+
+  it("allows a retry when Notion clearly refused", async () => {
+    const { state, repository } = setup();
+    const result = await send(repository, vi.fn().mockRejectedValue(new Error("Notion API 400 Bad Request: validation_error")));
+    expect(result.status).toBe("failed");
+    expect(state.milestones[0].sync_key).toBeNull();
+  });
+
+  it("marks nothing when Notion is not reachable or set up, so nothing needs checking", async () => {
+    const { state, repository } = setup();
+    const create = vi.fn();
+    const result = await sendLocalMilestoneToNotion({
+      id: "local-1", projectPageId: "project", startTime: null, endTime: null, repository, adapter: { create },
+      ready: () => Promise.reject(new Error("Could not find a STUDIO Schedule database")),
+    });
+    expect(result.status).toBe("failed");
+    expect(create).not.toHaveBeenCalled();
+    expect(state.milestones[0].sync_key).toBeNull();
+  });
+
+  it("blocks a retry when the reply was lost, so a second row cannot appear", async () => {
+    const { state, repository } = setup();
+    const create = vi.fn().mockRejectedValue(new Error("fetch failed"));
+    expect((await send(repository, create)).status).toBe("pending-review");
+    expect(state.milestones[0].sync_key).toBe(sendKeyFor(local));
+    expect((await send(repository, create)).status).toBe("pending-review");
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

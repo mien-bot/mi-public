@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getDrawingIndex, getDrawingPhaseDurations, getProject, getProjectSlugs, PHASE_LABELS, PHASE_ORDER } from "@/lib/content";
+import { getDrawingIndex, getDrawingPhaseDurations, getProjectSlugs, PHASE_LABELS, PHASE_ORDER } from "@/lib/content";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function generateStaticParams() {
@@ -12,16 +11,12 @@ export default async function DrawingsPage({ params }: { params: Promise<{ slug:
   const slugs = new Set(getProjectSlugs());
   if (!slugs.has(slug)) notFound();
 
-  const project = getProject(slug);
   const entries = getDrawingIndex(slug);
   const phaseDurations = getDrawingPhaseDurations(slug);
 
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <h1 className="mt-1 font-display text-2xl font-light tracking-wide">Drawings</h1>
       </div>
 
@@ -66,11 +61,10 @@ export default async function DrawingsPage({ params }: { params: Promise<{ slug:
                 </li>
               ))}
               {phaseEntries.length === 0 && (
-                <p className="text-sm text-muted-foreground">
-                  No {phase.toUpperCase()} sheets indexed yet — drop files into{" "}
-                  <code>projects/{slug}/drawings/{phase}/</code> and add an entry to{" "}
-                  <code>drawings/index.yaml</code>.
-                </p>
+                <li className="text-sm text-muted-foreground">
+                  No {phase.toUpperCase()} sheets recorded yet. Mi lists a sheet here once it is added
+                  to this project&apos;s drawing index.
+                </li>
               )}
             </ul>
           </section>

@@ -12,15 +12,77 @@ const fs = require("node:fs");
 const net = require("node:net");
 const path = require("node:path");
 const crypto = require("node:crypto");
-const { WORKSPACE } = require("./nativeClient");
+const { WORKSPACE, SESSION } = require("./nativeClient");
 
 const TOKEN = /^[a-f0-9]{32}$/;
 const REVIEW_MS = 90_000;
 const SHOWN_MS = 1_500;
 const MAX_REQUEST = 4096;
 
-function createReviewBroker({ describe, apply, notify, close, reviewMs = REVIEW_MS, shownMs = SHOWN_MS }) {
+const SLOT = /^[1-4]$/;
+const MAX_CONNECT = 11;
+const reasonText = value => typeof value === "string" && value.length <= 200 && !/[\u0000-\u001f\u007f]/.test(value);
+const pathText = value => typeof value === "string" && value.length > 0 && value.length <= 1000 && !/[\u0000-\u001f\u007f]/.test(value);
+// Which terminal session asked, so a person with several agents in one project can tell them apart.
+// Display only: it decides nothing.
+const asker = message => SLOT.test(message?.slot ?? "") ? { session: message.slot } : {};
+
+/**
+ * connect ({ describe, apply }) lets an agent ask for open AutoCAD drawings to be connected, behind
+ * the same visible approval as an edit; Mi describes the files itself. open ({ describe, apply })
+ * does the same for a drawing file in the project's folder that is not open yet. select switches an
+ * agent window's current drawing among those already connected, which only changes what it reads
+ * by default, so it needs no review.
+ */
+function createReviewBroker({ describe, apply, connect, open, select, notify, close, reviewMs = REVIEW_MS, shownMs = SHOWN_MS }) {
   const pending = new Map();
+  /** Puts a review in front of the person; resolves "approved", "declined", "timeout", "cancelled", or "unseen". */
+  function ask(fields, cancelled) {
+    const id = crypto.randomUUID();
+    const public_ = { id, ...fields, expiresAt: Date.now() + reviewMs };
+    return new Promise(resolve => {
+      const review = { resolve, public_, shown: false };
+      pending.set(id, review);
+      review.shownTimer = setTimeout(() => finish(id, "unseen"), shownMs);
+      review.answerTimer = setTimeout(() => finish(id, "timeout"), reviewMs);
+      cancelled?.(() => finish(id, "cancelled"));
+      notify(public_);
+    });
+  }
+  const declinedReason = answer => answer === "timeout" ? "The review timed out with no answer." : answer === "cancelled" ? "The request was cancelled." : "The person declined.";
+  async function connectDrawings(message, cancelled) {
+    const { workspace, application, drawings, reason } = message;
+    if (!connect || !WORKSPACE.test(workspace) || application !== "autocad" || !Array.isArray(drawings) || drawings.length < 1 || drawings.length > MAX_CONNECT
+      || drawings.some(item => !SESSION.test(item?.session) || !SESSION.test(item?.document)) || (reason !== undefined && !reasonText(reason))) return { handled: false };
+    const targets = drawings.map(({ session, document }) => ({ session, document }));
+    let detail;
+    try { detail = await connect.describe(workspace, targets, reason); }
+    catch (error) { return { handled: true, error: error instanceof Error ? error.message : String(error) }; }
+    const answer = await ask({ kind: "connect", workspace, application, title: detail.title, summary: detail.summary, ...asker(message) }, cancelled);
+    if (answer === "unseen") return { handled: false };
+    if (answer !== "approved") return { handled: true, response: { outcome: "declined", connected: false, reason: declinedReason(answer) } };
+    try { return { handled: true, response: { outcome: "answered", drawings: await connect.apply(workspace, targets) } }; }
+    catch (error) { return { handled: true, error: error instanceof Error ? error.message : String(error) }; }
+  }
+  /** Mi resolves and checks the path itself; the agent only names it. Unseen means nothing opened. */
+  async function openDrawing(message, cancelled) {
+    const { workspace, application, path: requested, readOnly, reason } = message;
+    if (!open || !WORKSPACE.test(workspace) || application !== "autocad" || !pathText(requested) || (readOnly !== undefined && typeof readOnly !== "boolean")
+      || (reason !== undefined && !reasonText(reason))) return { handled: false };
+    let detail;
+    try { detail = await open.describe(workspace, requested, readOnly === true, reason); }
+    catch (error) { return { handled: true, error: error instanceof Error ? error.message : String(error) }; }
+    const answer = await ask({ kind: "open", workspace, application, title: detail.title, summary: detail.summary, ...asker(message) }, cancelled);
+    if (answer === "unseen") return { handled: false };
+    if (answer !== "approved") return { handled: true, response: { outcome: "declined", opened: false, reason: declinedReason(answer) } };
+    try { return { handled: true, response: { outcome: "answered", ...(await open.apply(workspace, requested, readOnly === true)) } }; }
+    catch (error) { return { handled: true, error: error instanceof Error ? error.message : String(error) }; }
+  }
+  async function switchDrawing({ workspace, application, document, slot }) {
+    if (!select || !WORKSPACE.test(workspace) || application !== "autocad" || !SESSION.test(document) || !SLOT.test(slot ?? "")) return { handled: false };
+    try { return { handled: true, response: await select(workspace, document, slot) }; }
+    catch (error) { return { handled: true, error: error instanceof Error ? error.message : String(error) }; }
+  }
   function finish(id, outcome) {
     const review = pending.get(id);
     if (!review) return false;
@@ -30,27 +92,21 @@ function createReviewBroker({ describe, apply, notify, close, reviewMs = REVIEW_
     review.resolve(outcome);
     return true;
   }
-  async function request({ workspace, application, token }, cancelled) {
-    if (!WORKSPACE.test(workspace) || !["revit", "autocad"].includes(application) || !TOKEN.test(token)) return { handled: false };
-    const detail = await describe(workspace, application, token).catch(() => null);
+  /** document names the connected drawing the preview was made in; without it, the current one. */
+  async function request(message, cancelled) {
+    if (message?.kind === "connect") return connectDrawings(message, cancelled);
+    if (message?.kind === "open") return openDrawing(message, cancelled);
+    if (message?.kind === "select") return switchDrawing(message);
+    if (message?.kind !== undefined && message.kind !== "edit") return { handled: false };
+    const { workspace, application, token, document } = message ?? {};
+    if (!WORKSPACE.test(workspace) || !["revit", "autocad"].includes(application) || !TOKEN.test(token) || (document !== undefined && !SESSION.test(document))) return { handled: false };
+    const detail = await describe(workspace, application, token, document).catch(() => null);
     if (!detail) return { handled: false };
-    const id = crypto.randomUUID();
-    const public_ = { id, workspace, application, title: detail.title, summary: detail.summary, expiresAt: Date.now() + reviewMs };
-    const answer = await new Promise(resolve => {
-      const review = { resolve, public_, shown: false, token };
-      pending.set(id, review);
-      review.shownTimer = setTimeout(() => finish(id, "unseen"), shownMs);
-      review.answerTimer = setTimeout(() => finish(id, "timeout"), reviewMs);
-      cancelled?.(() => finish(id, "cancelled"));
-      notify(public_);
-    });
+    const answer = await ask({ kind: "edit", workspace, application, title: detail.title, summary: detail.summary, ...asker(message) }, cancelled);
     if (answer === "unseen") return { handled: false };
-    if (answer !== "approved") {
-      const reason = answer === "timeout" ? "The review timed out with no answer." : answer === "cancelled" ? "The request was cancelled." : "The person declined.";
-      return { handled: true, response: { outcome: "declined", changed: false, reason } };
-    }
+    if (answer !== "approved") return { handled: true, response: { outcome: "declined", changed: false, reason: declinedReason(answer) } };
     // Past this point the outcome can be unknown, so it is never reported as unhandled.
-    try { return { handled: true, response: await apply(workspace, application, token) }; }
+    try { return { handled: true, response: await apply(workspace, application, token, document) }; }
     catch (error) { return { handled: true, error: error instanceof Error ? error.message : String(error) }; }
   }
   return {

@@ -53,7 +53,7 @@ describe("POST /api/leads Dropbox setup", () => {
   it("rejects an unconfirmed Dropbox choice before creating a lead", async () => {
     const response = await POST(request({
       slug: "demo",
-      lead: { name: "Demo", dropbox_path: "1.01 LEADS/Demo" },
+      lead: { name: "Demo", dropbox_path: "Leads/Demo" },
       dropboxAction: "create",
       dropboxConfirmed: false,
     }));
@@ -65,14 +65,14 @@ describe("POST /api/leads Dropbox setup", () => {
   it("creates the reviewed Dropbox structure after the lead is saved", async () => {
     const response = await POST(request({
       slug: "demo",
-      lead: { name: "Demo", dropbox_path: "1.01 LEADS/Demo" },
+      lead: { name: "Demo", dropbox_path: "Leads/Demo" },
       dropboxAction: "create",
       dropboxConfirmed: true,
     }));
     expect(response.status).toBe(201);
     expect(mocks.previewLeadDropboxFolder).toHaveBeenCalledWith(
       "C:/Dropbox/STUDIO",
-      "1.01 LEADS/Demo",
+      "Leads/Demo",
       "create",
     );
     expect(mocks.applyLeadDropboxFolder).toHaveBeenCalledOnce();
@@ -82,7 +82,7 @@ describe("POST /api/leads Dropbox setup", () => {
   it("links an existing folder without applying any Dropbox mutation", async () => {
     const response = await POST(request({
       slug: "demo",
-      lead: { name: "Demo", dropbox_path: "1.01 LEADS/Existing" },
+      lead: { name: "Demo", dropbox_path: "Leads/Existing" },
       dropboxAction: "link-existing",
       dropboxConfirmed: true,
     }));

@@ -1,7 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import { load as loadYaml } from "js-yaml";
-import { permitQaqcEngagementSchema, type PermitQaqcEngagement } from "@/lib/schema";
+import {
+  PERMIT_QAQC_DEFAULT_REOPEN_STATUS,
+  permitQaqcEngagementSchema,
+  type PermitQaqcEngagement,
+} from "@/lib/schema";
+import { readCurrentHash } from "./atomicContentWrite";
 import { resolveFirmDataDir } from "./paths";
 import { ensurePermitQaqcSubdirs } from "./scaffoldPermitQaqc";
 import {
@@ -64,6 +69,32 @@ function validatedSlug(value: unknown): string {
   }
 }
 
+/**
+ * completed_at and reopen_status follow the status transition, never the caller's payload, so a
+ * form holding an older copy of the record cannot restore or erase them.
+ */
+function withCompletionFields(
+  merged: Record<string, unknown>,
+  current: PermitQaqcEngagement,
+): Record<string, unknown> {
+  const record = { ...merged };
+  delete record.completed_at;
+  delete record.reopen_status;
+  if (record.status !== "closed") return record;
+  if (current.status !== "closed") {
+    return {
+      ...record,
+      completed_at: new Date().toLocaleDateString("en-CA"),
+      reopen_status: current.status,
+    };
+  }
+  return {
+    ...record,
+    ...(current.completed_at && { completed_at: current.completed_at }),
+    ...(current.reopen_status && { reopen_status: current.reopen_status }),
+  };
+}
+
 export function createPermitQaqcEngagement(
   slugInput: unknown,
   input: unknown,
@@ -102,7 +133,7 @@ export function updatePermitQaqcEngagement(
   const current = permitQaqcEngagementSchema.safeParse(raw);
   if (!current.success) throw new PermitQaqcWriteError(firstIssueMessage(current.error));
   const engagement = validateEngagement(input);
-  const merged = { ...(raw as Record<string, unknown>), ...engagement };
+  const merged = withCompletionFields({ ...(raw as Record<string, unknown>), ...engagement }, current.data);
   const finalValidation = permitQaqcEngagementSchema.safeParse(merged);
   if (!finalValidation.success) throw new PermitQaqcWriteError(firstIssueMessage(finalValidation.error));
 
@@ -112,6 +143,48 @@ export function updatePermitQaqcEngagement(
     options.expectedHash === undefined ? {} : { expectedHash: options.expectedHash },
   );
   return { ...write, slug, engagement: finalValidation.data };
+}
+
+/** Complete closes the engagement; reopen returns it to the status it held before. */
+export function setPermitQaqcCompletion(
+  slugInput: unknown,
+  request: { action?: unknown; confirmed?: unknown; expectedName?: unknown },
+  options: PermitQaqcWriteOptions = {},
+): PermitQaqcWriteResult {
+  const { action } = request;
+  if (action !== "complete" && action !== "reopen") {
+    throw new PermitQaqcWriteError("Choose whether to complete or reopen this engagement.");
+  }
+  if (request.confirmed !== true) {
+    throw new PermitQaqcWriteError("Changing an engagement's completion requires explicit confirmation.");
+  }
+
+  const permitQaqcDirRoot = options.permitQaqcDir ?? resolveFirmDataDir("permit-qaqc").dir;
+  const slug = validatedSlug(slugInput);
+  const filePath = safeEngagementTarget(permitQaqcDirRoot, slug);
+  if (!fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    throw new PermitQaqcWriteError(`Permit QAQC engagement "${slug}" was not found.`, 404);
+  }
+
+  // Hash first: a write landing after this read is then caught by the update below.
+  const expectedHash = readCurrentHash(filePath);
+  const current = permitQaqcEngagementSchema.safeParse(loadYaml(fs.readFileSync(filePath, "utf8")));
+  if (!current.success) throw new PermitQaqcWriteError(firstIssueMessage(current.error));
+  const engagement = current.data;
+  if (request.expectedName !== engagement.name) {
+    throw new PermitQaqcWriteError("Engagement name changed. Refresh and confirm again.", 409);
+  }
+  if ((action === "complete") === (engagement.status === "closed")) {
+    throw new PermitQaqcWriteError(
+      `This engagement is already ${action === "complete" ? "completed" : "open"}. Refresh to see its current status.`,
+      409,
+    );
+  }
+
+  const status = action === "complete"
+    ? "closed"
+    : engagement.reopen_status ?? PERMIT_QAQC_DEFAULT_REOPEN_STATUS;
+  return updatePermitQaqcEngagement(slug, { ...engagement, status }, { permitQaqcDir: permitQaqcDirRoot, expectedHash });
 }
 
 export function deletePermitQaqcEngagement(

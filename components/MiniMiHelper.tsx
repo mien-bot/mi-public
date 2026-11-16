@@ -15,12 +15,15 @@ import { useCompanionClock, useFocusSession } from "@/lib/miniMi/focus";
 import { MiniMiFocus } from "./MiniMiFocus";
 import { MiniMiSuggestions } from "./MiniMiSuggestions";
 import { writeMiniMiPreference } from "@/lib/theme/preferences";
+import { openTerminalPane, useDesktopPaneWindows, useTerminalSurfaceEnabled } from "./workspacePanes";
 
 // Client interactions only: retain the rotation when route navigation remounts the helper.
 let lastPlayedReaction: MiniMiActivity | null = null;
 
 export function MiniMiHelper({ onChat, pending: legacyPending = false }: { onChat?: () => void; pending?: boolean }) {
   const pathname = usePathname();
+  const desktopPanes = useDesktopPaneWindows();
+  const terminalEnabled = useTerminalSurfaceEnabled();
   const preference = useMiniMiPreference();
   const { character } = preference;
   const allActivities = useMiActivities();
@@ -52,6 +55,9 @@ export function MiniMiHelper({ onChat, pending: legacyPending = false }: { onCha
   const contextReady = !terminalWorkspace || terminalContext?.requested === terminalWorkspace;
   const resolvedPath = terminalContext?.requested === terminalWorkspace && terminalContext.workspace ? `/${terminalContext.workspace}/terminal` : pathname;
   const guidance = miHelperSuggestions(resolvedPath);
+  const paneWorkspaceMatch = /^\/(projects|leads|permit-qaqc)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/.exec(resolvedPath);
+  const paneWorkspace = paneWorkspaceMatch && !["new", "analysis"].includes(paneWorkspaceMatch[2])
+    ? `${paneWorkspaceMatch[1]}/${paneWorkspaceMatch[2]}` : ".";
   const codingWorkspace = /^\/(projects|leads)\/([a-z0-9]+(?:-[a-z0-9]+)*)(?:\/|$)/.exec(resolvedPath);
   const codingHref = codingWorkspace && !["new", "analysis"].includes(codingWorkspace[2])
     ? codingWorkspace[1] === "projects"
@@ -175,7 +181,9 @@ export function MiniMiHelper({ onChat, pending: legacyPending = false }: { onCha
         {guidance.chatHref || !onChat
           ? <Link href={guidance.chatHref ?? "/"} onClick={() => dismiss()} className="flex-1 rounded-lg bg-accent px-3 py-2.5 text-center text-xs font-medium text-accent-foreground">{guidance.chatLabel ?? "Talk to Mi"}</Link>
           : <button type="button" onClick={() => { dismiss(); onChat(); }} className="flex-1 rounded-lg bg-accent px-3 py-2.5 text-xs font-medium text-accent-foreground">{pending ? "Return to Mi’s response" : "Talk to Mi"}</button>}
-        {codingHref && <Link href={codingHref} onClick={() => dismiss()} className="flex-1 rounded-lg border border-border px-3 py-2.5 text-center text-xs font-medium">Open coding terminal</Link>}
+        {terminalEnabled && (desktopPanes
+          ? <button type="button" title="Open Terminal in a pinned window" onClick={() => { openTerminalPane(paneWorkspace); dismiss(); }} className="flex-1 rounded-lg border border-border px-3 py-2.5 text-center text-xs font-medium hover:bg-muted">Terminal</button>
+          : codingHref && <Link href={codingHref} onClick={() => dismiss()} className="flex-1 rounded-lg border border-border px-3 py-2.5 text-center text-xs font-medium">Open coding terminal</Link>)}
       </div>}
       {activities.length > 0 && <section className="border-b border-border p-4" aria-label="Mi activity">
         <h3 className="text-xs font-medium">Activity</h3>

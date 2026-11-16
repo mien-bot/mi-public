@@ -22,6 +22,8 @@ export default async function PermitQaqcPage({
       (latest, round) => !latest || round.received_date > latest ? round.received_date : latest,
       null,
     ),
+    completedAt: engagement.completed_at ?? null,
+    reopenStatus: engagement.reopen_status ?? null,
   }));
   const { permitQaqc: conflicts } = detectFirmDataConflicts();
 

@@ -6,10 +6,9 @@ import { DeleteRecordButton } from "@/components/DeleteRecordButton";
 /**
  * Deletes a whole workspace folder — a library collection, or Mi's record of a project.
  *
- * Wraps DeleteRecordButton with the typed-name confirmation those two deserve: a slug is
- * easy to mis-click out of a list, a name is not something anyone types by accident. On
- * success it navigates away, because the page it was rendered on no longer describes
- * anything.
+ * Wraps DeleteRecordButton with the typed confirmation those two deserve. `name` still goes
+ * to the server, which refuses the delete if the record was renamed meanwhile. On success it
+ * navigates away, because the page it was rendered on no longer describes anything.
  *
  * `note` is where each caller states plainly what is *not* deleted. For a project that
  * matters a great deal: Mi removes its own folder and leaves the Dropbox content archive
@@ -24,7 +23,7 @@ export function DeleteWorkspaceButton({
   redirectTo,
 }: {
   endpoint: string;
-  /** The exact text the person must type back before Delete is enabled. */
+  /** The record's current name, checked by the server. */
   name: string;
   label: string;
   note?: string;
@@ -52,7 +51,7 @@ export function DeleteWorkspaceButton({
           label={label}
           prompt="This cannot be undone from inside Mi."
           recoverableNote="A recoverable copy is kept in .mi-backups on disk."
-          requireTypedName={name}
+          requireTypedWord="Delete"
           onDelete={run}
         />
       </div>

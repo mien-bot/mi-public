@@ -15,6 +15,6 @@ describe("isWriteAllowed", () => {
 
   it("refuses anything not explicitly listed, even for a known record type", () => {
     expect(isWriteAllowed("project", "name")).toBe(false);
-    expect(isWriteAllowed("schedule", "type")).toBe(false);
+    expect(isWriteAllowed("schedule", "name")).toBe(false);
   });
 });

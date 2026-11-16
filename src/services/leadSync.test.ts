@@ -22,7 +22,7 @@ const lead: Lead = {
   lost_reason: null,
   converted_project_slug: null,
   converted_date: null,
-  dropbox_path: "1.01 LEADS/Alpha",
+  dropbox_path: "Leads/Alpha",
   contract_stage: "not-sent",
   contract_notes: "",
   notion_page_id: "notion-alpha",
@@ -44,7 +44,7 @@ function notion(overrides: Partial<NotionLeadEntry> = {}): NotionLeadEntry {
     lostReason: "",
     convertedDate: null,
     convertedProjectPageIds: [],
-    dropboxPath: "1.01 LEADS/Different",
+    dropboxPath: "Leads/Different",
     contractStage: "sent",
     contractNotes: "Draft shared",
     meetingNotes: "",
@@ -67,11 +67,11 @@ describe("lead source synchronization", () => {
       estimated_value: 50_000,
       contract_stage: "sent",
     });
-    expect(result.nextLead.dropbox_path).toBe("1.01 LEADS/Alpha");
+    expect(result.nextLead.dropbox_path).toBe("Leads/Alpha");
     expect(result.changes).toContainEqual(expect.objectContaining({
       field: "dropbox_path",
       allowed: false,
-      to: "1.01 LEADS/Different",
+      to: "Leads/Different",
     }));
   });
 

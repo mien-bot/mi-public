@@ -1,4 +1,8 @@
 import { ProjectJourney } from "@/components/ProjectJourney";
+import { ProjectAsks } from "@/components/ProjectAsks";
+import { LazyDetails } from "@/components/LazyDetails";
+import { projectAsks } from "@/lib/projectAsks";
+import { dateInTimezone, DEFAULT_TIMEZONE } from "@/lib/content/timezone";
 import Link from "next/link";
 import { connection } from "next/server";
 import { ProjectDiscoveryPanel } from "@/components/ProjectDiscoveryPanel";
@@ -34,7 +38,6 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { OpenInNotionButton } from "@/components/OpenInNotionButton";
 import { ProjectStatusControl } from "@/components/ProjectStatusControl";
 import { getNotionProjectMapEntry } from "@/lib/notion/projectMap";
-import { ProjectIdentity } from "@/components/ProjectIdentity";
 import { ProjectMilestoneOverview } from "@/components/ProjectMilestoneOverview";
 import { NotionLink } from "@/components/NotionLink";
 import { NotionScheduleActivity } from "@/components/NotionScheduleActivity";
@@ -50,7 +53,6 @@ import { PendingApprovalsBanner } from "@/components/PendingApprovalsBanner";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import {
   CountPips,
-  HealthRing,
   MiniMeter,
   SegmentBar,
   SourceChip,
@@ -58,14 +60,7 @@ import {
 } from "@/components/OverviewGraphics";
 import { getProjectPendingApprovals } from "@/lib/content/pendingApprovals";
 
-/** Ring color for each resolved health badge state, kept beside the badge map it follows. */
-const HEALTH_RING_TONE: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  complete: "success",
-  "at-risk": "warning",
-  overdue: "danger",
-  pending: "neutral",
-  warning: "warning",
-};
+const OPEN_PROJECT_STATUSES: ReadonlySet<string> = new Set(["in-progress", "not-started"]);
 
 const HEALTH_BUCKET_STATUS: Record<string, string> = {
   success: "complete",
@@ -92,6 +87,8 @@ function RecordLink({ href, label, count, hint, icon, children, delayMs }: {
   children?: React.ReactNode;
   delayMs?: number;
 }) {
+  // A wall of zeros says nothing. An empty record type is one tap away under More project tools.
+  if (count === 0) return null;
   return (
     <Link
       href={href}
@@ -159,6 +156,8 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const siteReports = getProjectSiteReports(slug);
   const deliverables = getProjectDeliverables(slug);
   const reviewSummary = readWorkspaceReviewSummary("project", slug);
+  const reviewPendingCount = reviewSummary.counts.pending;
+  const reviewNeedsAttention = reviewPendingCount + reviewSummary.counts.failed > 0;
   const decisionCutoff = new Date();
   decisionCutoff.setUTCDate(decisionCutoff.getUTCDate() - 30);
   const decisionCutoffDate = decisionCutoff.toISOString().slice(0, 10);
@@ -202,71 +201,172 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
   const displayAddress = notion?.location || identity.address;
   const displayClient = notion?.client || identity.client;
   const nextMilestone = intelligence.nextUpcomingMilestone ?? intelligence.nextIncompleteMilestone;
+  const today = dateInTimezone(new Date(), process.env.MI_TIMEZONE || DEFAULT_TIMEZONE);
 
   return (
     <div className="flex flex-col gap-6">
-      {/*
-        The hero answers "what is this and how is it doing" in one glance: identity on the
-        left, the health score drawn on the right. The ring repeats the badge rather than
-        replacing it -- the badge carries the words a screen reader and a colorblind reader
-        need, the ring is the fast visual read for everyone else.
-      */}
-      <section className="project-hero surface-depth overflow-hidden rounded-xl border border-border bg-card">
-        <div className="flex flex-wrap items-start gap-5 p-5">
-          <ProjectIdentity name={project.meta.name} slug={slug} />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-3">
-              <h1 className="font-display text-2xl font-light tracking-wide">{project.meta.name}</h1>
-              <StatusBadge
-                status={healthBadgeStatus}
-                label={healthBadgeLabel}
-                title={intelligence.healthExplanation}
-              />
-              <StatusBadge status={project.meta.status} />
-            </div>
-            {displayAddress && <p className="mt-1 text-muted-foreground">{displayAddress}</p>}
-            <p className="text-sm text-muted-foreground">
-              {displayClient && project.meta.client_id ? (
-                <Link href={`/clients/${project.meta.client_id}`} className="hover:underline">
-                  {displayClient}
-                </Link>
-              ) : (
-                displayClient
-              )}
-              {project.meta.building_type ? ` · ${project.meta.building_type}` : ""}
-              {project.meta.occupancy_group.length > 0
-                ? ` · Occupancy ${project.meta.occupancy_group.join(", ")}`
-                : ""}
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <ProjectStatusControl
-                slug={slug}
-                initialStatus={project.meta.status}
-                notionLinked={Boolean(project.meta.notion_page_id)}
-              />
-              <OpenInNotionButton notionPageId={project.meta.notion_page_id} />
-            </div>
-          </div>
-          <div className="shrink-0 rounded-lg border border-border bg-background/50 p-3">
-            <HealthRing
-              score={intelligence.healthScore}
-              tone={HEALTH_RING_TONE[healthBadgeStatus] ?? "neutral"}
-              measured={intelligence.healthEvidenceState === "measured"}
-              label={intelligence.healthLabel}
-              title={intelligence.healthExplanation}
-            />
-          </div>
+      <section className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+        <h1 className="sr-only">{project.meta.name}</h1>
+        <p className="min-w-0 text-muted-foreground">
+          {[displayAddress, displayClient, project.meta.building_type].filter(Boolean).join(" · ")}
+        </p>
+        {intelligence.healthEvidenceState === "measured" && (
+          <StatusBadge status={healthBadgeStatus} label={healthBadgeLabel} title={intelligence.healthExplanation} />
+        )}
+        <div className="ml-auto flex flex-wrap items-center gap-3">
+          <ProjectStatusControl
+            slug={slug}
+            initialStatus={project.meta.status}
+            notionLinked={Boolean(project.meta.notion_page_id)}
+          />
+          <OpenInNotionButton notionPageId={project.meta.notion_page_id} />
         </div>
       </section>
 
       <ProjectBrief slug={slug} scope={details?.scope ?? ""} attention={intelligence.attentionReasons}
-        nextMilestone={nextMilestone} decisions={decisions.map(record => record.decision)}
-        knowledge={knowledge ? sortKnowledgeEntries(knowledge.entries) : []} />
-      <ProjectJourney slug={slug} milestones={schedule.milestones} />
+        milestones={schedule.milestones} today={today}
+        reviewCount={reviewPendingCount}>
+        {OPEN_PROJECT_STATUSES.has(project.meta.status) && (
+          <ProjectAsks key={scheduleHash} slug={slug} asks={projectAsks(schedule.milestones, today)} initialHash={scheduleHash} today={today} />
+        )}
+      </ProjectBrief>
+      <PendingApprovalsBanner approvals={pendingApprovals} />
+
+      {reviewNeedsAttention && <PendingReviewPanel summary={reviewSummary} />}
+
+      {pendingProposalCount > 0 && (
+        <AgentProposalInbox
+          projectSlug={slug}
+          notionLinked={Boolean(project.meta.notion_page_id)}
+          initialRecords={agentProposalInbox}
+          currentValues={{
+            details,
+            meta: {
+              building_type: project.meta.building_type,
+              occupancy_group: project.meta.occupancy_group,
+            },
+          }}
+        />
+      )}
+
+      <section aria-labelledby="project-records-heading" className="[&:not(:has(a))]:hidden">
+        <h2 id="project-records-heading" className="flex items-center gap-2 font-medium">
+          <AppIcon name="files" className="h-4 w-4 text-accent" />
+          Records
+        </h2>
+        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <RecordLink
+            href={`/projects/${slug}/decisions`}
+            label="Decision register"
+            icon="decision"
+            delayMs={0}
+            count={decisions.length}
+            hint={`${openDecisionCount} open · ${recentDecisionCount} decided in 30 days`}
+          >
+            {decisions.length > 0 && (
+              <MiniMeter
+                percent={((decisions.length - openDecisionCount) / decisions.length) * 100}
+                label="decided"
+              />
+            )}
+          </RecordLink>
+          <RecordLink
+            href={`/projects/${slug}/site-reports`}
+            label="Site reports"
+            icon="site"
+            delayMs={50}
+            count={siteReports.length}
+            hint={`${draftSiteReportCount} draft · ${unresolvedSiteItemCount} open item(s)`}
+          >
+            <SegmentBar
+              segments={[
+                { key: "draft", count: draftSiteReportCount, tone: "warning", label: "draft" },
+                { key: "final", count: siteReports.length - draftSiteReportCount, tone: "success", label: "final" },
+              ]}
+            />
+          </RecordLink>
+          <RecordLink
+            href={`/projects/${slug}/deliverables`}
+            label="Deliverables"
+            icon="submissions"
+            delayMs={100}
+            count={deliverables.length}
+            hint={`${issuedDeliverableCount} issued · ${draftDeliverableCount} draft`}
+          >
+            <SegmentBar
+              segments={[
+                { key: "issued", count: issuedDeliverableCount, tone: "success", label: "issued" },
+                { key: "draft", count: draftDeliverableCount, tone: "warning", label: "draft" },
+                { key: "other", count: Math.max(0, deliverables.length - issuedDeliverableCount - draftDeliverableCount), tone: "neutral", label: "other" },
+              ]}
+            />
+          </RecordLink>
+          <RecordLink
+            href={`/projects/${slug}/meetings`}
+            label="Meetings"
+            icon="meeting"
+            delayMs={150}
+            count={meetings.length}
+            hint={`${plannedMeetingCount} planned agenda(s)`}
+          >
+            {meetings.length > 0 && (
+              <CountPips filled={meetings.length - plannedMeetingCount} total={meetings.length} label="meetings held" />
+            )}
+          </RecordLink>
+          <RecordLink
+            href={`/projects/${slug}/drawings`}
+            label="Markups"
+            icon="drawings"
+            delayMs={200}
+            count={markupResolution.total}
+            hint={markupResolution.total > 0 ? `${markupResolution.percentResolved}% resolved` : "None indexed"}
+          >
+            {markupResolution.total > 0 && (
+              <MiniMeter
+                percent={markupResolution.percentResolved}
+                tone={markupResolution.percentResolved >= 100 ? "success" : "accent"}
+                label="resolved"
+              />
+            )}
+          </RecordLink>
+          <RecordLink
+            href={`/projects/${slug}/schedule`}
+            label="Milestones"
+            icon="calendar"
+            delayMs={250}
+            count={schedule.milestones.length}
+            hint={`${intelligence.overdueMilestones.length} overdue · ${intelligence.atRiskMilestones.length} at risk`}
+          >
+            <SegmentBar
+              segments={[
+                { key: "overdue", count: intelligence.overdueMilestones.length, tone: "danger", label: "overdue" },
+                { key: "at-risk", count: intelligence.atRiskMilestones.length, tone: "warning", label: "at risk" },
+                {
+                  key: "on-track",
+                  count: Math.max(0, schedule.milestones.length - intelligence.overdueMilestones.length - intelligence.atRiskMilestones.length),
+                  tone: "success",
+                  label: "on track",
+                },
+              ]}
+            />
+          </RecordLink>
+        </div>
+      </section>
+
+      <h2 className="mt-2 text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">More about this project</h2>
       <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
-        <summary className="cursor-pointer font-medium">Files &amp; shared work</summary>
-        <div className="mt-4"><ProjectDiscoveryPanel slug={slug} /></div>
+        <summary className="cursor-pointer font-medium">Milestone road ahead</summary>
+        <div className="mt-4"><ProjectJourney slug={slug} milestones={schedule.milestones} /></div>
       </details>
+      {!reviewNeedsAttention && (
+        <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
+          <summary className="cursor-pointer font-medium">Review inbox settings</summary>
+          <div className="mt-4"><PendingReviewPanel summary={reviewSummary} /></div>
+        </details>
+      )}
+      <LazyDetails summary="Files & shared work" className="progressive-disclosure rounded-xl border border-border bg-card p-4">
+        <ProjectDiscoveryPanel slug={slug} />
+      </LazyDetails>
       <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
         <summary className="cursor-pointer font-medium">Project facts: fee, scope &amp; connections</summary>
         <div className="mt-4">
@@ -380,25 +480,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
         </details>
       )}
 
-      <PendingApprovalsBanner approvals={pendingApprovals} />
-
-      <PendingReviewPanel summary={reviewSummary} />
-
-      {pendingProposalCount > 0 && (
-        <AgentProposalInbox
-          projectSlug={slug}
-          notionLinked={Boolean(project.meta.notion_page_id)}
-          initialRecords={agentProposalInbox}
-          currentValues={{
-            details,
-            meta: {
-              building_type: project.meta.building_type,
-              occupancy_group: project.meta.occupancy_group,
-            },
-          }}
-        />
-      )}
-
       <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
         <summary className="cursor-pointer font-medium">Milestone details &amp; archive</summary>
         <div className="mt-4">
@@ -411,110 +492,6 @@ export default async function ProjectPage({ params }: { params: Promise<{ slug: 
 
         </div>
       </details>
-
-      <section aria-labelledby="project-records-heading">
-        <h2 id="project-records-heading" className="flex items-center gap-2 font-medium">
-          <AppIcon name="files" className="h-4 w-4 text-accent" />
-          Records
-        </h2>
-        <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          <RecordLink
-            href={`/projects/${slug}/decisions`}
-            label="Decision register"
-            icon="decision"
-            delayMs={0}
-            count={decisions.length}
-            hint={`${openDecisionCount} open · ${recentDecisionCount} decided in 30 days`}
-          >
-            {decisions.length > 0 && (
-              <MiniMeter
-                percent={((decisions.length - openDecisionCount) / decisions.length) * 100}
-                label="decided"
-              />
-            )}
-          </RecordLink>
-          <RecordLink
-            href={`/projects/${slug}/site-reports`}
-            label="Site reports"
-            icon="site"
-            delayMs={50}
-            count={siteReports.length}
-            hint={`${draftSiteReportCount} draft · ${unresolvedSiteItemCount} open item(s)`}
-          >
-            <SegmentBar
-              segments={[
-                { key: "draft", count: draftSiteReportCount, tone: "warning", label: "draft" },
-                { key: "final", count: siteReports.length - draftSiteReportCount, tone: "success", label: "final" },
-              ]}
-            />
-          </RecordLink>
-          <RecordLink
-            href={`/projects/${slug}/deliverables`}
-            label="Deliverables"
-            icon="submissions"
-            delayMs={100}
-            count={deliverables.length}
-            hint={`${issuedDeliverableCount} issued · ${draftDeliverableCount} draft`}
-          >
-            <SegmentBar
-              segments={[
-                { key: "issued", count: issuedDeliverableCount, tone: "success", label: "issued" },
-                { key: "draft", count: draftDeliverableCount, tone: "warning", label: "draft" },
-                { key: "other", count: Math.max(0, deliverables.length - issuedDeliverableCount - draftDeliverableCount), tone: "neutral", label: "other" },
-              ]}
-            />
-          </RecordLink>
-          <RecordLink
-            href={`/projects/${slug}/meetings`}
-            label="Meetings"
-            icon="meeting"
-            delayMs={150}
-            count={meetings.length}
-            hint={`${plannedMeetingCount} planned agenda(s)`}
-          >
-            {meetings.length > 0 && (
-              <CountPips filled={meetings.length - plannedMeetingCount} total={meetings.length} label="meetings held" />
-            )}
-          </RecordLink>
-          <RecordLink
-            href={`/projects/${slug}/drawings`}
-            label="Markups"
-            icon="drawings"
-            delayMs={200}
-            count={markupResolution.total}
-            hint={markupResolution.total > 0 ? `${markupResolution.percentResolved}% resolved` : "None indexed"}
-          >
-            {markupResolution.total > 0 && (
-              <MiniMeter
-                percent={markupResolution.percentResolved}
-                tone={markupResolution.percentResolved >= 100 ? "success" : "accent"}
-                label="resolved"
-              />
-            )}
-          </RecordLink>
-          <RecordLink
-            href={`/projects/${slug}/schedule`}
-            label="Milestones"
-            icon="calendar"
-            delayMs={250}
-            count={schedule.milestones.length}
-            hint={`${intelligence.overdueMilestones.length} overdue · ${intelligence.atRiskMilestones.length} at risk`}
-          >
-            <SegmentBar
-              segments={[
-                { key: "overdue", count: intelligence.overdueMilestones.length, tone: "danger", label: "overdue" },
-                { key: "at-risk", count: intelligence.atRiskMilestones.length, tone: "warning", label: "at risk" },
-                {
-                  key: "on-track",
-                  count: Math.max(0, schedule.milestones.length - intelligence.overdueMilestones.length - intelligence.atRiskMilestones.length),
-                  tone: "success",
-                  label: "on track",
-                },
-              ]}
-            />
-          </RecordLink>
-        </div>
-      </section>
 
       <details className="progressive-disclosure rounded-xl border border-border bg-card p-4">
         <summary className="cursor-pointer font-medium">Recent activity &amp; project knowledge</summary>

@@ -3,7 +3,12 @@ import os from "node:os";
 import path from "node:path";
 import { load as loadYaml } from "js-yaml";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createPermitQaqcEngagement, deletePermitQaqcEngagement, updatePermitQaqcEngagement } from "./permitQaqcMutations";
+import {
+  createPermitQaqcEngagement,
+  deletePermitQaqcEngagement,
+  setPermitQaqcCompletion,
+  updatePermitQaqcEngagement,
+} from "./permitQaqcMutations";
 
 const VALID_ENGAGEMENT = {
   name: "example-record-13",
@@ -66,6 +71,67 @@ describe("permit QAQC mutations", () => {
     expect(written.future_field).toBe("keep-me");
     expect(result.backupPath).not.toBeNull();
     expect(fs.existsSync(result.backupPath!)).toBe(true);
+  });
+
+  describe("completion", () => {
+    const slug = "914-example-ave";
+    const complete = { action: "complete", confirmed: true, expectedName: VALID_ENGAGEMENT.name };
+    const reopen = { ...complete, action: "reopen" };
+    const read = () => loadYaml(
+      fs.readFileSync(path.join(permitQaqcDir, slug, "qaqc.yaml"), "utf8"),
+    ) as Record<string, unknown>;
+
+    beforeEach(() => {
+      createPermitQaqcEngagement(slug, { ...VALID_ENGAGEMENT, status: "resubmitted" }, { permitQaqcDir });
+    });
+
+    it("completes, then reopens to the exact prior status with a recoverable backup", () => {
+      const completed = setPermitQaqcCompletion(slug, complete, { permitQaqcDir });
+      expect(completed.backupPath).not.toBeNull();
+      expect(read()).toMatchObject({
+        status: "closed",
+        reopen_status: "resubmitted",
+        completed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}$/),
+      });
+
+      setPermitQaqcCompletion(slug, reopen, { permitQaqcDir });
+      const reopened = read();
+      expect(reopened.status).toBe("resubmitted");
+      expect(reopened).not.toHaveProperty("completed_at");
+      expect(reopened).not.toHaveProperty("reopen_status");
+    });
+
+    it("requires confirmation and refuses a stale name or repeated action", () => {
+      expect(() => setPermitQaqcCompletion(slug, { ...complete, confirmed: false }, { permitQaqcDir })).toThrow(/confirmation/);
+      expect(() => setPermitQaqcCompletion(slug, { ...complete, expectedName: "Other" }, { permitQaqcDir })).toThrow(/changed/);
+      expect(() => setPermitQaqcCompletion(slug, reopen, { permitQaqcDir })).toThrow(/already open/);
+      expect(read().status).toBe("resubmitted");
+
+      setPermitQaqcCompletion(slug, complete, { permitQaqcDir });
+      expect(() => setPermitQaqcCompletion(slug, complete, { permitQaqcDir })).toThrow(/already completed/);
+    });
+
+    it("reopens a record closed before prior status was remembered", () => {
+      updatePermitQaqcEngagement(slug, { ...VALID_ENGAGEMENT, status: "closed" }, { permitQaqcDir });
+      const filePath = path.join(permitQaqcDir, slug, "qaqc.yaml");
+      fs.writeFileSync(filePath, fs.readFileSync(filePath, "utf8").replace(/^reopen_status:.*\n/m, ""));
+
+      setPermitQaqcCompletion(slug, reopen, { permitQaqcDir });
+      expect(read().status).toBe("in-review");
+    });
+
+    it("keeps completion fields consistent when the edit form changes status or sends an old copy", () => {
+      updatePermitQaqcEngagement(slug, { ...VALID_ENGAGEMENT, status: "closed" }, { permitQaqcDir });
+      const closed = read();
+      expect(closed.reopen_status).toBe("resubmitted");
+
+      updatePermitQaqcEngagement(slug, { ...VALID_ENGAGEMENT, status: "closed", notes: "edited", reopen_status: "received" }, { permitQaqcDir });
+      expect(read()).toMatchObject({ notes: "edited", reopen_status: "resubmitted", completed_at: closed.completed_at });
+
+      updatePermitQaqcEngagement(slug, { ...VALID_ENGAGEMENT, status: "received", completed_at: "2026-01-01" }, { permitQaqcDir });
+      expect(read()).not.toHaveProperty("completed_at");
+      expect(read()).not.toHaveProperty("reopen_status");
+    });
   });
 
   it("deletes only after exact confirmation and backs up the whole engagement folder recoverably", () => {

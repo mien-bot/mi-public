@@ -1,6 +1,5 @@
 "use client";
 
-import { usePathname } from "next/navigation";
 import { AppIcon } from "@/components/AppIcon";
 
 export interface ProjectGuideContent {
@@ -44,19 +43,19 @@ export function projectGuideForPath(pathname: string): ProjectGuideContent {
   };
 }
 
-export function ProjectPageGuide() {
-  const guide = projectGuideForPath(usePathname());
+export function ProjectPageGuide({ pathname }: { pathname: string }) {
+  const guide = projectGuideForPath(pathname);
   return (
-    <details className="group rounded-lg border border-border/60 px-3 py-2">
-      <summary className="flex cursor-pointer list-none items-center gap-3 text-sm [&::-webkit-details-marker]:hidden">
-        <AppIcon name="info" className="h-4 w-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 text-muted-foreground">How to use {guide.title}</span>
-        <span aria-hidden="true" className="text-muted-foreground transition-transform group-open:rotate-45">+</span>
+    <details className="relative">
+      <summary aria-label={`How to use ${guide.title}`} title={`How to use ${guide.title}`} className="grid h-8 w-8 cursor-pointer list-none place-items-center rounded-md border border-border hover:border-accent [&::-webkit-details-marker]:hidden">
+        <AppIcon name="info" className="h-4 w-4 text-muted-foreground" />
       </summary>
-      <p className="mt-3 text-sm text-muted-foreground">{guide.purpose}</p>
-      <ol className="mt-3 grid gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+      <div className="absolute right-0 z-40 mt-1 w-[min(22rem,80vw)] rounded-lg border border-border bg-card p-3 shadow-lg">
+      <p className="text-sm text-muted-foreground">{guide.purpose}</p>
+      <ol className="mt-3 grid gap-2 text-xs text-muted-foreground">
         {guide.steps.map((step, index) => <li key={step} className="rounded-md bg-muted/60 px-3 py-2"><span className="mr-2 font-mono text-accent">{index + 1}</span>{step}</li>)}
       </ol>
+      </div>
     </details>
   );
 }

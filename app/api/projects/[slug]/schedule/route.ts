@@ -8,11 +8,12 @@ import {
   schedulePath,
   writeProjectSchedule,
 } from "@/lib/content";
-import { scheduleDraftItemSchema } from "@/lib/schema";
-import { saveScheduleItemLocally, syncScheduleItems } from "@/lib/content/notionScheduleSync";
+import { scheduleDraftItemSchema, scheduleTypeSchema } from "@/lib/schema";
+import { saveScheduleItemLocally, sendKeyFor, sendLocalMilestoneToNotion, syncScheduleItems } from "@/lib/content/notionScheduleSync";
 import { ContentConflictError, readCurrentHash } from "@/lib/content/atomicContentWrite";
 import {
   createProjectScheduleEntry,
+  getStudioScheduleDatabaseId,
   getScheduleEntry,
   queryScheduleEntriesForProject,
   updateProjectScheduleEntry,
@@ -20,9 +21,14 @@ import {
 import { recordAudit } from "@/src/audit/log";
 import { isWriteAllowed } from "@/src/policies/approvals";
 import { dateInTimezone, DEFAULT_TIMEZONE } from "@/lib/content/timezone";
+import { daysBetween, endAfterMove, shiftByDays } from "@/lib/scheduleShift";
 
 function currentHash(slug: string): string | null {
   return readCurrentHash(schedulePath(slug));
+}
+
+function validClock(value: unknown): value is string {
+  return typeof value === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
 function validDate(value: unknown): value is string {
@@ -114,6 +120,58 @@ export async function POST(
       return NextResponse.json({ saved: true, id, hash: currentHash(slug) });
     }
 
+    if (body?.operation === "send-local") {
+      if (body.confirmed !== true) {
+        return NextResponse.json({ error: "Explicit confirmation is required." }, { status: 409 });
+      }
+      if (!isWriteAllowed("schedule", "create")) {
+        return NextResponse.json({ error: "Notion schedule-item creation is disabled in mi.config.yaml." }, { status: 409 });
+      }
+      let hashAtLoad: string | null = null;
+      const result = await sendLocalMilestoneToNotion({
+        id: String(body.id ?? ""),
+        projectPageId: project.meta.notion_page_id,
+        startTime: typeof body.startAt === "string" ? body.startAt : null,
+        endTime: typeof body.endAt === "string" ? body.endAt : null,
+        repository: {
+          load: () => {
+            hashAtLoad = currentHash(slug);
+            return getSchedule(slug, { includeArchived: true }).milestones;
+          },
+          save: (milestones) => {
+            writeProjectSchedule(slug, milestones, { expectedHash: hashAtLoad });
+            hashAtLoad = currentHash(slug);
+          },
+        },
+        adapter: { create: (input) => createProjectScheduleEntry(input) },
+        ready: () => getStudioScheduleDatabaseId(),
+      });
+      refresh(slug);
+      recordAudit({
+        command: "project schedule confirmed send to Notion",
+        actor: process.env.USERNAME || process.env.USER || "unknown",
+        slug,
+        diff: result,
+        applied: result.status === "success",
+      });
+      return NextResponse.json({ result, hash: currentHash(slug) });
+    }
+
+    if (body?.operation === "allow-send-retry") {
+      if (body.confirmed !== true) {
+        return NextResponse.json({ error: "Explicit confirmation is required." }, { status: 409 });
+      }
+      const hashAtLoad = currentHash(slug);
+      const { milestones } = getSchedule(slug, { includeArchived: true });
+      const target = milestones.find((item) => item.id === body.id);
+      if (!target || target.notion_event_id || target.sync_key !== sendKeyFor(target)) {
+        return NextResponse.json({ error: "This item has nothing waiting to be checked." }, { status: 409 });
+      }
+      writeProjectSchedule(slug, milestones.map((item) => item.id === target.id ? { ...item, sync_key: null } : item), { expectedHash: hashAtLoad });
+      refresh(slug);
+      return NextResponse.json({ cleared: true, hash: currentHash(slug) });
+    }
+
     if (body?.operation === "refresh-notion-status") {
       if (body.confirmed !== true) {
         return NextResponse.json({ error: "Explicit confirmation is required." }, { status: 409 });
@@ -183,6 +241,11 @@ export async function PATCH(
   if (!id || !validDate(body?.plannedDate) || (actualDate !== null && !validDate(actualDate))) {
     return NextResponse.json({ error: "A milestone and valid planned/actual dates are required." }, { status: 400 });
   }
+  const timeGiven = body && "startTime" in body;
+  if (timeGiven && body.startTime !== null && !validClock(body.startTime)) {
+    return NextResponse.json({ error: "Use a time in HH:MM format." }, { status: 400 });
+  }
+  const startAt = typeof body?.startAt === "string" && !Number.isNaN(Date.parse(body.startAt)) ? body.startAt : null;
 
   if (!("expectedHash" in body) || (body.expectedHash !== null && typeof body.expectedHash !== "string")) {
     return NextResponse.json({ error: "Reload this schedule before saving so Mi can verify no one else changed it." }, { status: 409 });
@@ -202,17 +265,24 @@ export async function PATCH(
     const milestone = schedule.milestones[index];
     const plannedDateChanged = body.plannedDate !== milestone.planned_date;
     const actualDateChanged = actualDate !== milestone.actual_date;
+    const startTimeChanged = timeGiven && (body.startTime ?? null) !== (milestone.start_time ?? null);
+    const scheduleMoved = plannedDateChanged || startTimeChanged;
+    const requestedType = scheduleTypeSchema.safeParse(body.type).data;
+    const typeChanged = Boolean(requestedType) && requestedType !== milestone.type;
     if (body.syncNotion === true) {
       if (!project.meta.notion_page_id || !milestone.notion_event_id) {
         return NextResponse.json({ error: "This milestone is not linked to Notion." }, { status: 409 });
       }
-      const plannedDateWriteBlocked = plannedDateChanged && !isWriteAllowed("schedule", "planned_date");
+      const plannedDateWriteBlocked = scheduleMoved && !isWriteAllowed("schedule", "planned_date");
       const actualDateWriteBlocked = actualDateChanged && !isWriteAllowed("schedule", "actual_date");
       if (plannedDateWriteBlocked || actualDateWriteBlocked) {
         return NextResponse.json(
           { error: "Notion schedule writes are disabled in mi.config.yaml." },
           { status: 409 },
         );
+      }
+      if (typeChanged && !isWriteAllowed("schedule", "type")) {
+        return NextResponse.json({ error: "notion-type-disabled" }, { status: 409 });
       }
       const current = await getScheduleEntry(milestone.notion_event_id);
       const currentDate = current.date?.slice(0, 10) ?? null;
@@ -223,12 +293,19 @@ export async function PATCH(
           { status: 409 },
         );
       }
-      if (plannedDateChanged && (current.startTime || current.endTime)) {
+      const movesTrackedTimes = scheduleMoved && Boolean(current.startTime || current.endTime);
+      if (movesTrackedTimes && (!isWriteAllowed("schedule", "start_time") || !isWriteAllowed("schedule", "end_time"))) {
         return NextResponse.json(
-          { error: "Move timed milestones from the STUDIO Schedule calendar so Mi can review Date, Start Time, and End Time together." },
+          { error: "Notion schedule writes are disabled in mi.config.yaml." },
           { status: 409 },
         );
       }
+      // A row's Date range and its Start Time and End Time move together, keeping their length.
+      const days = daysBetween(milestone.planned_date, body.plannedDate);
+      const movedStart = startAt ?? (current.date ? shiftByDays(current.date, days) : body.plannedDate);
+      const movedEnd = !current.dateEnd ? undefined
+        : startAt && current.date ? endAfterMove(current.date, current.dateEnd, startAt)
+          : shiftByDays(current.dateEnd, days);
       const notionCompletionMatchesLocal = milestone.actual_date
         ? current.status === "Done" && currentCompletedDate === milestone.actual_date
         : current.status !== "Done" && currentCompletedDate === null;
@@ -240,7 +317,13 @@ export async function PATCH(
       }
       await updateProjectScheduleEntry({
         eventPageId: milestone.notion_event_id,
-        date: plannedDateChanged ? body.plannedDate : undefined,
+        types: typeChanged
+          ? [requestedType as string, ...current.type.filter((value) => !scheduleTypeSchema.safeParse(value).success)]
+          : undefined,
+        date: scheduleMoved ? movedStart : undefined,
+        dateEnd: scheduleMoved ? movedEnd : undefined,
+        startTime: scheduleMoved && current.startTime ? shiftByDays(current.startTime, days) : undefined,
+        endTime: scheduleMoved && current.endTime ? shiftByDays(current.endTime, days) : undefined,
         status: actualDateChanged ? (actualDate ? "Done" : "In progress") : undefined,
         completedDate: actualDateChanged ? actualDate : undefined,
       });
@@ -251,18 +334,24 @@ export async function PATCH(
         diff: [
           { record: "schedule", field: "planned_date", from: milestone.planned_date, to: body.plannedDate },
           { record: "schedule", field: "actual_date", from: milestone.actual_date, to: actualDate },
+          ...(typeChanged ? [{ record: "schedule", field: "type", from: current.type, to: requestedType }] : []),
         ],
         applied: true,
       });
     }
-    const { priority: storedPriority, ...rest } = milestone;
+    const { priority: storedPriority, start_time: storedStartTime, type: storedType, ...rest } = milestone;
+    const startTime = timeGiven ? body.startTime : storedStartTime;
     const requestedPriority = ["critical", "high", "normal"].includes(body.priority) ? body.priority : undefined;
     const priority = body.priority === "auto" ? undefined : requestedPriority ?? storedPriority;
+    // null clears a saved category, which is how Undo returns to reading the name.
+    const type = body.type === null ? undefined : requestedType ?? storedType;
     schedule.milestones[index] = {
       ...rest,
       planned_date: body.plannedDate,
       actual_date: actualDate,
       ...(priority ? { priority } : {}),
+      ...(type ? { type } : {}),
+      ...(startTime ? { start_time: startTime } : {}),
     };
     writeProjectSchedule(slug, schedule.milestones, { expectedHash });
     refresh(slug);
@@ -277,6 +366,9 @@ export async function PATCH(
       return NextResponse.json({ error: "conflict", currentHash: cause.currentHash }, { status: 409 });
     }
     const message = cause instanceof Error ? cause.message : "Schedule update failed.";
+    if (body.syncNotion === true && message.includes("object_not_found")) {
+      return NextResponse.json({ error: "notion-row-missing" }, { status: 409 });
+    }
     return NextResponse.json({ error: message }, { status: message === "Project not found." ? 404 : 502 });
   }
 }

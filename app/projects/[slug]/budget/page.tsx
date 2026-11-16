@@ -1,6 +1,5 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
-import { computeBudgetStatus, getBudget, getBudgetVariance, getProject, getProjectSlugs } from "@/lib/content";
+import { computeBudgetStatus, getBudget, getBudgetVariance, getProjectSlugs } from "@/lib/content";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function generateStaticParams() {
@@ -18,7 +17,6 @@ export default async function BudgetPage({ params }: { params: Promise<{ slug: s
   const slugs = new Set(getProjectSlugs());
   if (!slugs.has(slug)) notFound();
 
-  const project = getProject(slug);
   const budget = getBudget(slug);
   const variance = getBudgetVariance(slug);
   const varianceByName = new Map(variance.map((v) => [v.name, v]));
@@ -35,9 +33,6 @@ export default async function BudgetPage({ params }: { params: Promise<{ slug: s
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <h1 className="mt-1 font-display text-2xl font-light tracking-wide">Budget</h1>
       </div>
 

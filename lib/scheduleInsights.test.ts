@@ -1,6 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { milestoneTier, scheduleEntryTier, slipWarnings, timelineRow, upcomingMarkers } from "./scheduleInsights";
+import { milestoneCategory, milestoneTier, scheduleEntryTier, slipWarnings, timelineRow, upcomingMarkers } from "./scheduleInsights";
 import { milestoneSchema, projectDetailsSchema } from "./schema";
+
+describe("reading a category from a name", () => {
+  it("does not mistake working time that mentions a meeting for a meeting", () => {
+    expect(milestoneCategory({ name: "Work on Example Blvd - post-meeting coordination and revisions" })).toBe("Work Session");
+    expect(milestoneCategory({ name: "Client Meeting - Example Client: party room" })).toBe("Client Meeting");
+    expect(milestoneCategory({ name: "Example Client Confirmation Meeting - design decisions" })).toBe("Client Meeting");
+    expect(milestoneCategory({ name: "GC Meeting - Example Blvd" })).toBe("Meeting");
+    expect(milestoneCategory({ name: "Submit progress package" })).toBe("Deadline");
+  });
+
+  it("always prefers a category someone saved", () => {
+    expect(milestoneCategory({ name: "Client Meeting", type: "Deadline" })).toBe("Deadline");
+  });
+});
 
 const details = projectDetailsSchema.parse({
   contract_end_date: "2026-12-31",

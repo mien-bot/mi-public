@@ -48,7 +48,7 @@ export const DEFAULT_MI_CONFIG: MiConfig = {
     autosync_interval_minutes: 240,
     allowed_write_fields: {
       project: ["status", "client", "address", "knowledge"],
-      schedule: ["create", "remove", "planned_date", "actual_date", "start_time", "end_time"],
+      schedule: ["create", "remove", "planned_date", "actual_date", "start_time", "end_time", "type"],
       lead: [
         "create",
         "name",

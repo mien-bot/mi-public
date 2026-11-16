@@ -1,4 +1,5 @@
 import type { Milestone, ScheduleDraftItem } from "@/lib/schema";
+import { milestoneCategory } from "@/lib/scheduleInsights";
 
 export interface ScheduleSyncResult {
   client_request_id: string;
@@ -24,6 +25,12 @@ export interface LocalScheduleSaveResult {
  * copilot route so a future Milestone field addition needs updating once.
  * Idempotent on `client_request_id` — a repeat call is a no-op.
  */
+/** The wall-clock time in the item's own offset, which is the time the person chose. */
+function startTimeOf(item: ScheduleDraftItem): { start_time?: string } {
+  const time = /T(\d{2}:\d{2})/.exec(item.start_time ?? "")?.[1];
+  return time ? { start_time: time } : {};
+}
+
 export function saveScheduleItemLocally(
   item: ScheduleDraftItem,
   repository: ScheduleSyncRepository,
@@ -38,6 +45,8 @@ export function saveScheduleItemLocally(
         id,
         name: item.name,
         planned_date: item.date,
+        type: item.type,
+        ...startTimeOf(item),
         actual_date: null,
         notion_event_id: null,
         sync_key: null,
@@ -55,8 +64,72 @@ export interface ScheduleCreateAdapter {
     type: ScheduleDraftItem["type"];
     startTime: string | null;
     endTime: string | null;
-    status: "Not started";
+    status: "Not started" | "Done";
+    completedDate?: string | null;
   }): Promise<{ id: string; url: string }>;
+}
+
+export const sendKeyFor = (milestone: Pick<Milestone, "id">) => `send-${milestone.id}`;
+
+/** Notion answered and refused, so nothing was created and a retry cannot duplicate it. */
+const notionRefused = (cause: unknown) => cause instanceof Error && /Notion API 4\d\d/.test(cause.message);
+
+/**
+ * Sends one existing Mi-only item to STUDIO Schedule and links it, keeping its id. A key is saved
+ * before calling Notion. If Notion may have received the item, the key stays and blocks a
+ * retry until a person has checked, so a lost reply cannot make a second row.
+ */
+export async function sendLocalMilestoneToNotion(input: {
+  id: string;
+  projectPageId: string | null;
+  startTime: string | null;
+  endTime: string | null;
+  repository: ScheduleSyncRepository;
+  adapter: ScheduleCreateAdapter;
+  /** Fails before anything is marked, so a setup problem never reads as a possible send. */
+  ready?: () => Promise<unknown>;
+}): Promise<ScheduleSyncResult> {
+  if (!input.projectPageId) throw new Error("This project is not linked to Notion.");
+  const milestones = input.repository.load();
+  const milestone = milestones.find((item) => item.id === input.id);
+  if (!milestone) throw new Error("Milestone not found.");
+  const report = { client_request_id: milestone.id, name: milestone.name };
+  if (milestone.notion_event_id) return { ...report, status: "already-applied", notion_event_id: milestone.notion_event_id };
+  if (milestone.sync_key) {
+    return { ...report, status: "pending-review", error: "An earlier send may have reached Notion. Check STUDIO Schedule before sending again." };
+  }
+  try {
+    await input.ready?.();
+  } catch (cause) {
+    return { ...report, status: "failed", error: cause instanceof Error ? cause.message : "Mi could not reach STUDIO Schedule." };
+  }
+  const withKey = (changes: Partial<Milestone>) => milestones.map((item) => item.id === milestone.id ? { ...item, ...changes } : item);
+  input.repository.save(withKey({ sync_key: sendKeyFor(milestone) }));
+  let created: { id: string; url: string };
+  try {
+    created = await input.adapter.create({
+      projectPageId: input.projectPageId,
+      name: milestone.name,
+      date: milestone.planned_date.slice(0, 10),
+      type: milestoneCategory(milestone),
+      startTime: input.startTime,
+      endTime: input.endTime,
+      status: milestone.actual_date ? "Done" : "Not started",
+      completedDate: milestone.actual_date,
+    });
+  } catch (cause) {
+    if (notionRefused(cause)) {
+      input.repository.save(withKey({ sync_key: null }));
+      return { ...report, status: "failed", error: cause instanceof Error ? cause.message : "Notion refused this item." };
+    }
+    return { ...report, status: "pending-review", error: "Notion did not answer, so this may or may not have arrived. Check STUDIO Schedule before sending again." };
+  }
+  try {
+    input.repository.save(withKey({ sync_key: sendKeyFor(milestone), notion_event_id: created.id }));
+  } catch {
+    return { ...report, status: "pending-review", notion_event_id: created.id, notion_url: created.url, error: "Notion has this item, but Mi could not record the link. Sync this project from Notion." };
+  }
+  return { ...report, status: "success", notion_event_id: created.id, notion_url: created.url };
 }
 
 /**
@@ -99,6 +172,8 @@ export async function syncScheduleItems(input: {
       id: `pending-${item.client_request_id}`,
       name: item.name,
       planned_date: item.date,
+      type: item.type,
+      ...startTimeOf(item),
       actual_date: null,
       notion_event_id: null,
       sync_key: item.client_request_id,
@@ -125,6 +200,8 @@ export async function syncScheduleItems(input: {
         id: `notion-${created.id}`,
         name: item.name,
         planned_date: item.date,
+        type: item.type,
+        ...startTimeOf(item),
         actual_date: null,
         notion_event_id: created.id,
         sync_key: item.client_request_id,

@@ -23,8 +23,8 @@ afterEach(() => {
 describe("lead Dropbox folder planning", () => {
   it("previews without writing, then creates the exact standard structure only after confirmation", () => {
     const root = temporaryRoot();
-    const plan = previewLeadDropboxFolder(root, "1.01 LEADS/26_0811_Demo", "create");
-    const target = path.join(root, "1.01 LEADS", "26_0811_Demo");
+    const plan = previewLeadDropboxFolder(root, "Leads/26_0811_Demo", "create");
+    const target = path.join(root, "Leads", "26_0811_Demo");
 
     expect(plan.folders).toEqual([...LEAD_DROPBOX_SUBFOLDERS]);
     expect(plan.folders).toContain("01_Admin");
@@ -41,23 +41,23 @@ describe("lead Dropbox folder planning", () => {
 
   it("links an existing selected folder without changing its contents", () => {
     const root = temporaryRoot();
-    const target = path.join(root, "1.01 LEADS", "Existing Lead");
+    const target = path.join(root, "Leads", "Existing Lead");
     fs.mkdirSync(target, { recursive: true });
     fs.writeFileSync(path.join(target, "keep.txt"), "unchanged", "utf8");
 
-    const plan = previewLeadDropboxFolder(root, "1.01 LEADS\\Existing Lead", "link-existing");
-    expect(plan.relativePath).toBe("1.01 LEADS/Existing Lead");
+    const plan = previewLeadDropboxFolder(root, "Leads\\Existing Lead", "link-existing");
+    expect(plan.relativePath).toBe("Leads/Existing Lead");
     expect(plan.folders).toEqual([]);
     expect(fs.readdirSync(target)).toEqual(["keep.txt"]);
   });
 
   it("can fill missing subfolders beneath an already-confirmed empty lead folder", () => {
     const root = temporaryRoot();
-    const target = path.join(root, "1.01 LEADS", "Existing Empty Lead");
+    const target = path.join(root, "Leads", "Existing Empty Lead");
     fs.mkdirSync(target, { recursive: true });
     const plan = previewLeadDropboxFolder(
       root,
-      "1.01 LEADS/Existing Empty Lead",
+      "Leads/Existing Empty Lead",
       "create",
       { allowExistingRoot: true },
     );
@@ -68,11 +68,11 @@ describe("lead Dropbox folder planning", () => {
 
   it("rejects traversal, a missing existing selection, and creating over an existing folder", () => {
     const root = temporaryRoot();
-    fs.mkdirSync(path.join(root, "1.01 LEADS", "Already Here"), { recursive: true });
+    fs.mkdirSync(path.join(root, "Leads", "Already Here"), { recursive: true });
 
     expect(() => previewLeadDropboxFolder(root, "../outside", "create")).toThrow(/unsafe|relative|escapes/i);
-    expect(() => previewLeadDropboxFolder(root, "1.01 LEADS/Missing", "link-existing")).toThrow(/does not exist/i);
-    expect(() => previewLeadDropboxFolder(root, "1.01 LEADS/Already Here", "create")).toThrow(/already exists/i);
+    expect(() => previewLeadDropboxFolder(root, "Leads/Missing", "link-existing")).toThrow(/does not exist/i);
+    expect(() => previewLeadDropboxFolder(root, "Leads/Already Here", "create")).toThrow(/already exists/i);
   });
 
   it("preserves existing legacy folders and documents when completing setup", () => {

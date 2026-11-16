@@ -35,9 +35,7 @@ export default async function PermitQaqcTerminalPage({ params }: { params: Promi
           on the engagement page when you want to review the exact file changes first.
         </p>
       </div>
-      <div className="h-[70dvh] min-h-[34rem] lg:h-[calc(100dvh-15rem)]">
-        <WorkspaceTerminal workspace={`permit-qaqc/${slug}`} />
-      </div>
+      <WorkspaceTerminal workspace={`permit-qaqc/${slug}`} resizable />
     </div>
   );
 }

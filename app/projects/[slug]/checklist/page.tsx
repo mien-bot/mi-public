@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getChecklist, getChecklistCompletion, getCodeSectionById, getProject, getProjectSlugs } from "@/lib/content";
+import { getChecklist, getChecklistCompletion, getCodeSectionById, getProjectSlugs } from "@/lib/content";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export function generateStaticParams() {
@@ -12,16 +12,12 @@ export default async function ChecklistPage({ params }: { params: Promise<{ slug
   const slugs = new Set(getProjectSlugs());
   if (!slugs.has(slug)) notFound();
 
-  const project = getProject(slug);
   const checklist = getChecklist(slug);
   const completion = getChecklistCompletion(checklist);
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <div className="mt-1 flex items-center gap-3">
           <h1 className="font-display text-2xl font-light tracking-wide">Code Compliance Checklist</h1>
           {completion.total > 0 && (
@@ -66,7 +62,7 @@ export default async function ChecklistPage({ params }: { params: Promise<{ slug
           </li>
         ))}
         {(!checklist || checklist.items.length === 0) && (
-          <p className="text-sm text-muted-foreground">No checklist items yet.</p>
+          <li className="text-sm text-muted-foreground">No checklist items yet.</li>
         )}
       </ul>
     </div>

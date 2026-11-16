@@ -68,14 +68,14 @@ describe("lead agent harness", () => {
   });
 
   it("writes into the confirmed Dropbox lead folder when one is linked", () => {
-    const item = fixture("1.01 LEADS/Alpha");
-    const dropboxLead = path.join(item.dropboxRoot, "1.01 LEADS", "Alpha");
+    const item = fixture("Leads/Alpha");
+    const dropboxLead = path.join(item.dropboxRoot, "Leads", "Alpha");
     fs.mkdirSync(dropboxLead, { recursive: true });
     const preview = previewLeadHarness(item);
     applyLeadHarnessPreview(preview, { confirmed: true });
     expect(fs.existsSync(path.join(item.leadDirectory, "Mi"))).toBe(false);
     const leadDoc = fs.readFileSync(path.join(dropboxLead, "Mi", "LEAD_CONTEXT.md"), "utf8");
-    expect(leadDoc).toContain("1.01 LEADS/Alpha");
+    expect(leadDoc).toContain("Leads/Alpha");
   });
 
   it("teaches the installed lead rules template's real invariants", () => {

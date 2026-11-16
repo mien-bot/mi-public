@@ -6,10 +6,12 @@ import { WorkspaceAnalysisPanel } from "@/components/WorkspaceAnalysis";
 import { readWorkspaceReviewSummary } from "@/lib/content/reviewInboxService";
 import { analysisNudge, readStoredAnalysis } from "@/lib/content/workspaceAnalysisStore";
 import { DeletePermitQaqcButton } from "@/components/DeletePermitQaqcButton";
+import { PermitQaqcCompletionButton } from "@/components/PermitQaqcCompletionButton";
 import { PermitQaqcForm } from "@/components/PermitQaqcForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getPermitQaqcDropboxDir, getPermitQaqcEngagementWithHash, getPermitQaqcSlugs, listDropboxTree } from "@/lib/content";
 import { permitQaqcMemoryPath } from "@/lib/content/permitQaqc";
+import { splitKnowledgeBody } from "@/lib/content/projectKnowledge";
 import { readMemoryFile } from "@/lib/content/projectWorkspace";
 import { listPermitQaqcCorrespondence } from "@/lib/permitQaqcEmail/listCorrespondence";
 
@@ -34,7 +36,16 @@ export default async function PermitQaqcDetailPage({ params }: { params: Promise
         <Link href="/permit-qaqc" className="text-sm text-muted-foreground hover:underline">← Permit QAQC</Link>
         <div className="mt-1 flex items-center gap-3">
           <h1 className="font-display text-2xl font-light tracking-wide">{engagement.name}</h1>
-          <StatusBadge status={engagement.status} />
+          <StatusBadge
+            status={engagement.status}
+            label={engagement.status === "closed" ? "completed" : undefined}
+          />
+          <PermitQaqcCompletionButton
+            slug={slug}
+            name={engagement.name}
+            status={engagement.status}
+            reopenStatus={engagement.reopen_status ?? null}
+          />
         </div>
         <p className="mt-1 text-sm text-muted-foreground">
           Submitted by {engagement.submitting_firm}
@@ -52,7 +63,14 @@ export default async function PermitQaqcDetailPage({ params }: { params: Promise
 
       <section className="flex flex-col gap-3">
         <h2 className="font-medium">Edit engagement</h2>
-        <PermitQaqcForm mode="edit" slug={slug} initialEngagement={engagement} initialHash={hash} />
+        {/* Remounts on complete/reopen, whose write would otherwise conflict with this form's copy. */}
+        <PermitQaqcForm
+          key={engagement.completed_at ?? "open"}
+          mode="edit"
+          slug={slug}
+          initialEngagement={engagement}
+          initialHash={hash}
+        />
       </section>
 
       <PendingReviewPanel summary={reviewSummary} />
@@ -64,12 +82,21 @@ export default async function PermitQaqcDetailPage({ params }: { params: Promise
             Findings saved from the review inbox appear here.
           </p>
         )}
-        {knowledge?.sections.map((section, index) => (
-          <details key={`${section.title}-${index}`} className="rounded-md border border-border p-3 text-sm">
-            <summary className="cursor-pointer font-medium">{section.title}</summary>
-            <p className="mt-2 whitespace-pre-wrap break-words text-muted-foreground">{section.body}</p>
-          </details>
-        ))}
+        {knowledge?.sections.map((section, index) => {
+          const { summary, details } = splitKnowledgeBody(section.body);
+          return (
+            <details key={`${section.title}-${index}`} className="rounded-md border border-border p-3 text-sm">
+              <summary className="cursor-pointer font-medium">{section.title}</summary>
+              <p className="mt-2 whitespace-pre-wrap break-words text-muted-foreground">{summary}</p>
+              {details && (
+                <details className="mt-2 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer">Details</summary>
+                  <p className="mt-1 whitespace-pre-wrap break-words">{details}</p>
+                </details>
+              )}
+            </details>
+          );
+        })}
       </section>
 
       <WorkspaceAnalysisPanel

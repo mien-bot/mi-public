@@ -102,7 +102,7 @@ describe("inspecting a candidate shared Mi data folder", () => {
     const { dropboxRoot, localDataRoot } = machine({ seedShared: false });
     const report = inspectSharedData({
       dropboxRoot,
-      sharedRelativePath: "9.00 Not Synced Yet",
+      sharedRelativePath: "Not Synced Yet",
       sharedDataRootEnabled: true,
       localDataRoot,
     });

@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArchitectToolsWorkspace, type TimeEvidenceCandidate } from "@/components/ArchitectToolsWorkspace";
 import {
   getMeetingNotes,
-  getProject,
   getProjectArchitectToolkit,
   getProjectDecisions,
   getProjectSiteReports,
@@ -21,7 +19,6 @@ export default async function ArchitectToolsPage({
 }) {
   const { slug } = await params;
   if (!getProjectSlugs().includes(slug)) notFound();
-  const project = getProject(slug);
   const evidence: TimeEvidenceCandidate[] = [
     ...getMeetingNotes(slug).map((meeting) => ({
       id: `meeting-${meeting.id}`,
@@ -49,9 +46,6 @@ export default async function ArchitectToolsPage({
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Link href={`/projects/${slug}`} className="text-sm text-muted-foreground hover:underline">
-          ← {project.meta.name}
-        </Link>
         <h1 className="mt-1 font-display text-2xl font-light tracking-wide">Architect Tools</h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
           Project-scoped occupancy, workplace, specification, product, carbon, time, and

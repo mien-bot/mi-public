@@ -1,9 +1,10 @@
 import Link from "next/link";
 import type { Milestone } from "@/lib/schema";
 import { milestoneTrail } from "@/lib/projectSnapshot";
+import { isScheduleEvent } from "@/lib/scheduleInsights";
 
 export function ProjectJourney({ slug, milestones }: { slug: string; milestones: Milestone[] }) {
-  const trail = milestoneTrail(milestones);
+  const trail = milestoneTrail(milestones.filter((item) => !isScheduleEvent(item)));
   return <section aria-label="Project milestone trail" className="rounded-xl border border-border bg-card p-4">
     <div className="flex flex-wrap items-baseline justify-between gap-2">
       <h2 className="font-medium">The road ahead</h2>

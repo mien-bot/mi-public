@@ -173,6 +173,94 @@ describe("schedule route confirmation contract", () => {
     mocks.currentHash.mockReturnValue("current-hash");
   });
 
+  it("reports a deleted Notion row distinctly, writes nothing, and lets the person apply in Mi only", async () => {
+    mocks.get.mockRejectedValueOnce(new Error("Notion API 404 Not Found: object_not_found: Could not find page"));
+    const patch = (syncNotion: boolean) => PATCH(new Request("http://localhost/api/projects/demo/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "milestone-1", plannedDate: "2026-08-10", actualDate: "2026-07-26", syncNotion, confirmed: true, expectedHash: "current-hash" }),
+    }), context);
+    const missing = await patch(true);
+    expect(missing.status).toBe(409);
+    expect((await missing.json()).error).toBe("notion-row-missing");
+    expect(mocks.write).not.toHaveBeenCalled();
+
+    expect((await patch(false)).status).toBe(200);
+    expect(mocks.write).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears a saved category when asked, so the name is read again", async () => {
+    mocks.schedule.milestones[0].notion_event_id = null;
+    (mocks.schedule.milestones[0] as { type?: string }).type = "Work Session";
+    const response = await PATCH(new Request("http://localhost/api/projects/demo/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "milestone-1", plannedDate: "2026-08-10", actualDate: null, type: null, syncNotion: false, confirmed: true, expectedHash: "current-hash" }),
+    }), context);
+    expect(response.status).toBe(200);
+    expect(mocks.write.mock.lastCall?.[1][0]).not.toHaveProperty("type");
+  });
+
+  it("changes a linked row's type in Notion, keeping values Mi does not know", async () => {
+    mocks.get.mockResolvedValue({ date: "2026-08-10", startTime: null, endTime: null, completedDate: null, status: "In progress", type: ["Work Session", "Billable"] });
+    const response = await PATCH(new Request("http://localhost/api/projects/demo/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "milestone-1", plannedDate: "2026-08-10", actualDate: null, type: "Client Meeting", syncNotion: true, confirmed: true, expectedHash: "current-hash" }),
+    }), context);
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({ types: ["Client Meeting", "Billable"], date: undefined }));
+    expect(mocks.write).toHaveBeenCalledWith("demo", [expect.objectContaining({ type: "Client Meeting" })], { expectedHash: "current-hash" });
+  });
+
+  it("saves a category in Mi without calling Notion", async () => {
+    const response = await PATCH(new Request("http://localhost/api/projects/demo/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "milestone-1", plannedDate: "2026-08-10", actualDate: null, syncNotion: false, type: "Work Session", confirmed: true, expectedHash: "current-hash" }),
+    }), context);
+    expect(response.status).toBe(200);
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.write).toHaveBeenCalledWith("demo", [expect.objectContaining({ type: "Work Session" })], { expectedHash: "current-hash" });
+  });
+
+  it("moves a Notion row's Date range and work times together, keeping their clock times", async () => {
+    mocks.get.mockResolvedValue({
+      date: "2026-08-10T10:00:00.000-05:00",
+      dateEnd: "2026-08-10T11:00:00.000-05:00",
+      startTime: "2026-08-10T10:00:00.000-05:00",
+      endTime: "2026-08-10T11:00:00.000-05:00",
+      completedDate: null,
+      status: "In progress",
+    });
+    const response = await PATCH(new Request("http://localhost/api/projects/demo/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "milestone-1", plannedDate: "2026-08-13", actualDate: null, syncNotion: true, confirmed: true, expectedHash: "current-hash" }),
+    }), context);
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      date: "2026-08-13T10:00:00.000-05:00",
+      dateEnd: "2026-08-13T11:00:00.000-05:00",
+      startTime: "2026-08-13T10:00:00.000-05:00",
+      endTime: "2026-08-13T11:00:00.000-05:00",
+    }));
+  });
+
+  it("saves a dropped hour in Mi, and clears it for all day", async () => {
+    mocks.schedule.milestones[0].notion_event_id = null;
+    const send = (startTime: string | null) => PATCH(new Request("http://localhost/api/projects/demo/schedule", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: "milestone-1", plannedDate: "2026-08-10", actualDate: null, startTime, syncNotion: false, confirmed: true, expectedHash: "current-hash" }),
+    }), context);
+    expect((await send("14:30")).status).toBe(200);
+    expect(mocks.write).toHaveBeenLastCalledWith("demo", [expect.objectContaining({ start_time: "14:30" })], { expectedHash: "current-hash" });
+    expect((await send("25:00")).status).toBe(400);
+    expect((await send(null)).status).toBe(200);
+    expect(mocks.write.mock.lastCall?.[1][0]).not.toHaveProperty("start_time");
+  });
+
   it("marks a linked milestone done with an exact completed date after confirmation", async () => {
     const request = new Request("http://localhost/api/projects/demo/schedule", {
       method: "PATCH",
@@ -280,7 +368,7 @@ describe("schedule route confirmation contract", () => {
     expect(mocks.write).not.toHaveBeenCalled();
   });
 
-  it("blocks a timed linked milestone move instead of splitting its date and time", async () => {
+  it("keeps a date-only row with work times together when it moves", async () => {
     mocks.get.mockResolvedValue({
       date: "2026-08-10",
       startTime: "2026-08-10T09:00:00-05:00",
@@ -301,9 +389,13 @@ describe("schedule route confirmation contract", () => {
       }),
     });
     const response = await PATCH(request, context);
-    expect(response.status).toBe(409);
-    expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.write).not.toHaveBeenCalled();
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith(expect.objectContaining({
+      date: "2026-08-12",
+      startTime: "2026-08-12T09:00:00-05:00",
+      endTime: "2026-08-12T10:00:00-05:00",
+    }));
+    expect(mocks.write).toHaveBeenCalledTimes(1);
   });
 
   it("imports a confirmed Notion completion only after Submit refresh", async () => {

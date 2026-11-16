@@ -85,7 +85,7 @@ export function StatusBadge({
       className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${BUCKET_CLASSES[bucket]} ${className}`}
       title={title}
     >
-      {label ?? status}
+      {label ?? status.replaceAll("-", " ")}
     </span>
   );
 }

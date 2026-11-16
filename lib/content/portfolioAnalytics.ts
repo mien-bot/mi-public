@@ -1,3 +1,4 @@
+import { isCurrentProject } from "./projectRedirect";
 import type {
   Budget,
   Checklist,
@@ -812,7 +813,7 @@ export function buildPortfolioSnapshot(
   const today = todayToDateOnly(todayValue);
   const sourceProjects = readers
     .getAllProjects()
-    .filter((project) => isPortfolioProject({ slug: project.slug, name: project.meta.name }));
+    .filter((project) => isCurrentProject(project) && isPortfolioProject({ slug: project.slug, name: project.meta.name }));
   // One read of the Notion snapshot for the whole portfolio, joined on the human-confirmed
   // notion_page_id. A missing snapshot simply leaves every created time null.
   const createdBySlug = new Map<string, string>();

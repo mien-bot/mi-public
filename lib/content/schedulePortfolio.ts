@@ -1,3 +1,5 @@
+import type { ScheduleType } from "@/lib/schema";
+import { isCurrentProject } from "./projectRedirect";
 import { timelineRow, type TimelineRow } from "@/lib/scheduleInsights";
 import { getAllProjects, getSchedule, getScheduleWithHash, getProjectSlugs, writeProjectSchedule } from "./index";
 import { getProjectDetails } from "./projectWorkspace";
@@ -7,7 +9,7 @@ export function buildPortfolioTimeline(year: number): { rows: TimelineRow[]; una
   const rows: TimelineRow[] = [];
   const unavailable: string[] = [];
   const prefix = String(year);
-  for (const project of getAllProjects()) {
+  for (const project of getAllProjects().filter(isCurrentProject)) {
     try {
       const row = timelineRow(
         { slug: project.slug, name: project.meta.name },
@@ -29,6 +31,20 @@ export function buildPortfolioTimeline(year: number): { rows: TimelineRow[]; una
  * project page and the Studio calendar never disagree until the next pull. Returns the slug
  * updated, or null when no project tracks that event.
  */
+export function applyNotionTypeToProject(eventPageId: string, type: ScheduleType): string | null {
+  for (const slug of getProjectSlugs()) {
+    const { hash } = getScheduleWithHash(slug);
+    const full = getSchedule(slug, { includeArchived: true });
+    const index = full.milestones.findIndex((item) => item.notion_event_id === eventPageId);
+    if (index < 0) continue;
+    if (full.milestones[index].type === type) return slug;
+    full.milestones[index] = { ...full.milestones[index], type };
+    writeProjectSchedule(slug, full.milestones, { expectedHash: hash });
+    return slug;
+  }
+  return null;
+}
+
 export function applyNotionMoveToProject(eventPageId: string, newDate: string): string | null {
   for (const slug of getProjectSlugs()) {
     const { hash } = getScheduleWithHash(slug);

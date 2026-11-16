@@ -1,14 +1,25 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <!-- Installed AutoCAD 2027 API 26.0.0.0 references System.Runtime 10.0. Other releases need a separate build. -->
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- Each AutoCAD release loads only the runtime it hosts, so each target is its own build:
+         AutoCAD 2027 (API 26.0.0.0) runs .NET 10; AutoCAD 2024 (API 24.3.0.0) runs .NET Framework 4.8.
+         Build one target at a time with -f; the build script never builds a target whose AutoCAD is absent. -->
+    <TargetFrameworks>net10.0-windows;net48</TargetFrameworks>
     <PlatformTarget>x64</PlatformTarget>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
     <Version>0.1.0</Version>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
     <AutoCADPath Condition="'$(AutoCADPath)' == ''">C:\Program Files\Autodesk\AutoCAD 2027</AutoCADPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <AutoCADPath Condition="'$(AutoCADPath)' == ''">C:\Program Files\Autodesk\AutoCAD 2024</AutoCADPath>
+    <!-- AutoCAD 2024's process has no binding redirects for System.Text.Json's dependencies, so this
+         target ships no third-party assemblies. JsonShim.cs supplies the JSON subset the add-in uses. -->
+    <GenerateDependencyFile>false</GenerateDependencyFile>
   </PropertyGroup>
   <ItemGroup>
     <!-- AutoCAD's Application and Windows Forms' Application must not collide. -->
@@ -18,5 +29,8 @@
     <Reference Include="accoremgd"><HintPath>$(AutoCADPath)\accoremgd.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
     <Reference Include="acdbmgd"><HintPath>$(AutoCADPath)\acdbmgd.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
     <Reference Include="acmgd"><HintPath>$(AutoCADPath)\acmgd.dll</HintPath><Private>false</Private><ExternallyResolved>true</ExternallyResolved></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <Using Remove="System.Net.Http" />
   </ItemGroup>
 </Project>

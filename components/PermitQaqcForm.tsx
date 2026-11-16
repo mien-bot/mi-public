@@ -145,7 +145,9 @@ export function PermitQaqcForm({
             onChange={(event) => set("status", event.target.value as PermitQaqcEngagement["status"])}
             className={inputClass}
           >
-            {STATUSES.map((value) => <option key={value}>{value}</option>)}
+            {STATUSES.map((value) => (
+              <option key={value} value={value}>{value === "closed" ? "completed" : value}</option>
+            ))}
           </select>
         </Field>
         <Field label="Engagement number (folder prefix)">

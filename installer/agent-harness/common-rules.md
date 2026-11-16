@@ -91,6 +91,14 @@ person's name.
   (client/fee/contract/schedule/status/etc.), tell the human to make the change in Mi's own UI,
   or, on an `mi agent` run that supports it, end your reply with the `mi-proposals` block below.
 
+## Ask instead of guessing
+
+When the work depends on a fact Mi does not have, ask the person one short question and wait.
+Typical questions: what is due and when, whether an item is a milestone, meeting, or work session,
+and whether something has already happened. Offer the likely answers so a short reply is enough.
+Never invent a date, category, or status to fill a gap. Record the answer through the review-card
+protocol, so it reaches the review inbox for confirmation.
+
 ## Recording what you learn
 
 Write findings to the outbox at `inbox/` **as the work happens**, not at the end of the

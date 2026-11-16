@@ -61,10 +61,11 @@ describe("status route confirmation contract", () => {
     expect(mocks.updateStatus).not.toHaveBeenCalled();
   });
 
-  it("refuses to write when the project has no linked Notion page", async () => {
+  it("saves in Mi only when the project has no linked Notion page", async () => {
     mocks.project.meta.notion_page_id = null as unknown as string;
     const response = await PATCH(request({ status: "in-progress", confirmed: true }), context);
-    expect(response.status).toBe(409);
+    expect(response.status).toBe(200);
+    expect((await response.json()).notionSynced).toBe(false);
     expect(mocks.updateStatus).not.toHaveBeenCalled();
   });
 

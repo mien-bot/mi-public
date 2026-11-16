@@ -61,8 +61,11 @@ function LeadCardActions({ slug, name }: { slug: string; name: string }) {
   );
 }
 
-const STATUS_OPTIONS: (LeadStatus | "all")[] = [
-  "all", "new", "qualified", "proposal-sent", "won", "lost", "on-hold",
+type LeadStatusFilter = LeadStatus | "all" | "open";
+const CLOSED_STATUSES: readonly LeadStatus[] = ["won", "lost"];
+
+const STATUS_OPTIONS: LeadStatusFilter[] = [
+  "open", "all", "new", "qualified", "proposal-sent", "won", "lost", "on-hold",
 ];
 
 type LeadEvidenceFilter = "all" | "with-value" | "missing-value";
@@ -97,7 +100,7 @@ export function LeadsBrowser({
   projectSlugs: string[];
 }) {
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<LeadStatus | "all">("all");
+  const [status, setStatus] = useState<LeadStatusFilter>("open");
   const [evidence, setEvidence] = useState<LeadEvidenceFilter>("all");
   const [dateFilter, setDateFilter] = useState<LeadDateFilter>("all");
   const [sort, setSort] = useState<LeadSort>("attention");
@@ -109,7 +112,8 @@ export function LeadsBrowser({
     const last90 = localDateOffset(-90);
     return leads
       .filter((lead) => {
-        if (status !== "all" && lead.status !== status) return false;
+        if (status === "open" && CLOSED_STATUSES.includes(lead.status)) return false;
+        if (status !== "all" && status !== "open" && lead.status !== status) return false;
         if (evidence === "with-value" && lead.estimatedValue === null) return false;
         if (evidence === "missing-value" && lead.estimatedValue !== null) return false;
         if (dateFilter === "last-30" && lead.dateReceived < last30) return false;
@@ -134,11 +138,11 @@ export function LeadsBrowser({
       });
   }, [leads, query, status, evidence, dateFilter, sort]);
 
-  const openCount = leads.filter((lead) => !["won", "lost"].includes(lead.status)).length;
+  const openCount = leads.filter((lead) => !CLOSED_STATUSES.includes(lead.status)).length;
   const pipelineValue = leads.reduce((total, lead) => total + (lead.estimatedValue ?? 0), 0);
   const filtersActive = Boolean(
     query.trim()
-    || status !== "all"
+    || status !== "open"
     || evidence !== "all"
     || dateFilter !== "all"
     || sort !== "attention",
@@ -186,12 +190,12 @@ export function LeadsBrowser({
         <AdvancedListField label="Status">
           <select
             value={status}
-            onChange={(event) => setStatus(event.target.value as LeadStatus | "all")}
+            onChange={(event) => setStatus(event.target.value as LeadStatusFilter)}
             className={advancedListControlClass}
           >
             {STATUS_OPTIONS.map((value) => (
               <option key={value} value={value}>
-                {value === "all" ? "All statuses" : formatListValueLabel(value)}
+                {value === "all" ? "All statuses" : value === "open" ? "Open leads" : formatListValueLabel(value)}
               </option>
             ))}
           </select>
@@ -240,7 +244,7 @@ export function LeadsBrowser({
         filtersActive={filtersActive}
         onClear={() => {
           setQuery("");
-          setStatus("all");
+          setStatus("open");
           setEvidence("all");
           setDateFilter("all");
           setSort("attention");

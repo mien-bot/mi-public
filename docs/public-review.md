@@ -2,6 +2,15 @@
 
 Reviewed on 2026-10-14, starting from commit `06b0e89`.
 
+## 0.6.10 source update
+
+This source now matches private Mi 0.6.10, again through a scrubbed replay of changes rather than copied history. It adds project asks, schedule categories and calendars, sending confirmed events to Google Calendar, a CAD review popup, AutoCAD 2024 alongside 2027, richer AutoCAD edits, several drawings per project, CAD agents in the project terminal for Claude or Codex, opening drawings from the project folder, and copying and referencing between drawings with unit conversion.
+
+- The CAD thumbprint remains zeroed. Set your own before building the AutoCAD add-in, which now builds for both AutoCAD 2024 (.NET Framework 4.8) and 2027 (.NET 10).
+- A Codex CAD agent turns off the person's other Codex MCP servers, plugins, and apps for that launch only, using `-c` overrides; it does not edit `~/.codex`.
+- The dependency findings below were not rechecked or fixed in this update.
+- Example names, addresses, IDs, and folder labels are placeholders. This update also replaced numbered Dropbox folder labels that earlier commits still carried.
+
 ## 0.6.0 source update
 
 This source now matches private Mi 0.6.0 through a scrubbed replay of changes, not a copied history. It adds review, schedule, calendar, Google Calendar, meeting, and native Revit and AutoCAD source.

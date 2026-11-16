@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { DeletePermitQaqcButton } from "@/components/DeletePermitQaqcButton";
+import { PermitQaqcCompletionButton } from "@/components/PermitQaqcCompletionButton";
 import { PermitQaqcForm } from "@/components/PermitQaqcForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import {
@@ -27,12 +28,15 @@ export interface PermitQaqcListEntry {
   engagementNumber: string | null;
   roundCount: number;
   latestReceivedDate: string | null;
+  completedAt: string | null;
+  reopenStatus: PermitQaqcStatus | null;
 }
 
 const STATUS_OPTIONS: (PermitQaqcStatus | "all")[] = [
-  "all", "received", "in-review", "response-sent", "resubmitted", "closed",
+  "all", "received", "in-review", "response-sent", "resubmitted",
 ];
 
+type PermitQaqcView = "active" | "completed";
 type PermitQaqcActivityFilter = "all" | "with-rounds" | "without-rounds";
 type PermitQaqcSort = "attention" | "latest" | "number" | "name" | "firm";
 
@@ -52,6 +56,7 @@ const ATTENTION_RANK: Record<PermitQaqcStatus, number> = {
 };
 
 export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcListEntry[] }) {
+  const [view, setView] = useState<PermitQaqcView>("active");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState<PermitQaqcStatus | "all">("all");
   const [activity, setActivity] = useState<PermitQaqcActivityFilter>("all");
@@ -62,7 +67,8 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
     const q = query.trim().toLowerCase();
     return engagements
       .filter((entry) => {
-        if (status !== "all" && entry.status !== status) return false;
+        if ((entry.status === "closed") !== (view === "completed")) return false;
+        if (view === "active" && status !== "all" && entry.status !== status) return false;
         if (activity === "with-rounds" && entry.roundCount === 0) return false;
         if (activity === "without-rounds" && entry.roundCount > 0) return false;
         return !q
@@ -90,12 +96,13 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
         }
         return a.name.localeCompare(b.name, "en");
       });
-  }, [engagements, query, status, activity, sort]);
+  }, [engagements, view, query, status, activity, sort]);
 
-  const activeCount = engagements.filter((entry) => entry.status !== "closed").length;
+  const completedCount = engagements.filter((entry) => entry.status === "closed").length;
+  const activeCount = engagements.length - completedCount;
   const totalRounds = engagements.reduce((total, entry) => total + entry.roundCount, 0);
   const filtersActive = Boolean(
-    query.trim() || status !== "all" || activity !== "all" || sort !== "attention",
+    query.trim() || (view === "active" && status !== "all") || activity !== "all" || sort !== "attention",
   );
 
   return (
@@ -120,11 +127,25 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
       <div className="grid gap-3 sm:grid-cols-3">
         <ListMetric label="Total engagements" value={engagements.length} />
         <ListMetric label="Active reviews" value={activeCount} />
-        <ListMetric label="Review rounds" value={totalRounds} detail={`${engagements.filter((entry) => entry.status === "closed").length} closed`} />
+        <ListMetric label="Review rounds" value={totalRounds} detail={`${completedCount} completed`} />
 
       </div>
 
-      <AdvancedListToolbar columnsClassName="md:grid-cols-2 xl:grid-cols-4">
+      <div className="flex w-fit gap-1 rounded-lg border border-border bg-card p-1" role="group" aria-label="Engagement view">
+        {([["active", "Active", activeCount], ["completed", "Completed", completedCount]] as const).map(([value, label, count]) => (
+          <button
+            key={value}
+            type="button"
+            aria-pressed={view === value}
+            onClick={() => setView(value)}
+            className={`rounded-md px-3 py-1.5 text-sm ${view === value ? "bg-foreground text-background" : "text-muted-foreground hover:text-foreground"}`}
+          >
+            {label} ({count})
+          </button>
+        ))}
+      </div>
+
+      <AdvancedListToolbar columnsClassName={view === "active" ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}>
         <AdvancedListField label="Search">
           <input
             type="search"
@@ -134,19 +155,21 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
             className={advancedListControlClass}
           />
         </AdvancedListField>
-        <AdvancedListField label="Status">
-          <select
-            value={status}
-            onChange={(event) => setStatus(event.target.value as PermitQaqcStatus | "all")}
-            className={advancedListControlClass}
-          >
-            {STATUS_OPTIONS.map((value) => (
-              <option key={value} value={value}>
-                {value === "all" ? "All statuses" : formatListValueLabel(value)}
-              </option>
-            ))}
-          </select>
-        </AdvancedListField>
+        {view === "active" && (
+          <AdvancedListField label="Status">
+            <select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as PermitQaqcStatus | "all")}
+              className={advancedListControlClass}
+            >
+              {STATUS_OPTIONS.map((value) => (
+                <option key={value} value={value}>
+                  {value === "all" ? "All statuses" : formatListValueLabel(value)}
+                </option>
+              ))}
+            </select>
+          </AdvancedListField>
+        )}
         <AdvancedListField label="Recorded activity">
           <select
             value={activity}
@@ -175,8 +198,8 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
 
       <AdvancedListSummary
         shown={filtered.length}
-        total={engagements.length}
-        noun="engagement"
+        total={view === "active" ? activeCount : completedCount}
+        noun={view === "active" ? "active engagement" : "completed engagement"}
         filtersActive={filtersActive}
         onClear={() => {
           setQuery("");
@@ -202,7 +225,14 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
                   <span className="font-medium group-hover:underline">
                     {entry.name}
                   </span>
-                  <StatusBadge status={entry.status} className={RESPONSE_OWED.has(entry.status) ? "status-alert" : ""} />
+                  <StatusBadge
+                    status={entry.status}
+                    label={entry.status === "closed" ? "completed" : undefined}
+                    className={RESPONSE_OWED.has(entry.status) ? "status-alert" : ""}
+                  />
+                  {entry.completedAt && (
+                    <span className="text-xs text-muted-foreground">{formatListDate(entry.completedAt)}</span>
+                  )}
                 </div>
                 <dl className="mt-3 grid gap-x-5 gap-y-2 text-sm sm:grid-cols-4">
                   <div>
@@ -228,7 +258,15 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
                   </div>
                 </dl>
               </Link>
-              <DeletePermitQaqcButton slug={entry.slug} name={entry.name} compact />
+              <div className="flex shrink-0 gap-2">
+                <PermitQaqcCompletionButton
+                  slug={entry.slug}
+                  name={entry.name}
+                  status={entry.status}
+                  reopenStatus={entry.reopenStatus}
+                />
+                <DeletePermitQaqcButton slug={entry.slug} name={entry.name} compact />
+              </div>
             </div>
           </article>
         ))}
@@ -236,7 +274,11 @@ export function PermitQaqcBrowser({ engagements }: { engagements: PermitQaqcList
           <AdvancedListEmpty>
             {engagements.length === 0
               ? "No Permit QAQC engagements yet. Run `npm run suggest-permit-qaqc-links` to find real Dropbox folders to onboard, or use New engagement."
-              : "No engagements match your filters."}
+              : filtersActive
+                ? "No engagements match your filters."
+                : view === "active"
+                  ? "No active engagements."
+                  : "No completed engagements yet."}
           </AdvancedListEmpty>
         )}
       </div>
